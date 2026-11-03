@@ -1,5 +1,5 @@
-<<<<<<< HEAD
-# Arco · reloj de progreso siempre visible
+# Arco-reloj
+Un reloj para estudiantes de medicina y amantes de la productividad.
 
 Dial de anillos concéntricos que muestra cuánto ha avanzado (y cuánto queda) del **año, mes, semana, día, hora y minuto**. En el centro aparecen la hora y el tiempo restante del día o de la jornada.
 
@@ -65,6 +65,3 @@ qml/AppMenu.qml    menú de bandeja y de clic derecho
 qml/clocklogic.js  cálculos de tiempo (probado con Node)
 ```
 =======
-# Arco-reloj
-Un reloj para estudiantes de medicina y amantes de la productividad.
->>>>>>> 3be03eb34d2f548e3dc70f1534d01087333ed353
