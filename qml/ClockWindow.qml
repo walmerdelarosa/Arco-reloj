@@ -441,8 +441,13 @@ Window {
         // Cada línea se ajusta al ancho disponible: si el texto es largo, continúa en la línea de abajo.
         Column {
             id: textCol
-            readonly property var hr: win.radial && win.hoverIdx >= 0 && win.hoverIdx < win.n ? win.activeRings[win.hoverIdx] : null
-            readonly property var hv: hr ? win.t[hr.key] : null
+            // Anillo bajo el ratón y su valor, calculados juntos para que nunca queden desfasados.
+            readonly property var hov: {
+                if (!win.radial || win.hoverIdx < 0 || win.hoverIdx >= win.n) return null
+                const ring = win.activeRings[win.hoverIdx]
+                const val = ring ? win.t[ring.key] : undefined
+                return val ? { ring: ring, val: val } : null
+            }
             readonly property real boxW: win.analog ? win.faceR * 1.25
                                        : win.radial ? win.inner * (win.n === 0 ? 1.8 : 1.62)
                                        : win.dialW - 2 * win.pad
@@ -460,20 +465,20 @@ Window {
 
             Text {
                 width: parent.width
-                visible: textCol.hr !== null || (cfg.showText && cfg.showTime)
+                visible: textCol.hov !== null || (cfg.showText && cfg.showTime)
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 maximumLineCount: 3
                 font.pixelSize: Math.max(8, textCol.base * (win.radial && win.n === 0 && !win.analog ? 0.5 : 0.40))
                 font.weight: Font.DemiBold
                 font.features: ({ "tnum": 1 })
-                color: textCol.hr ? cfg[textCol.hr.col] : cfg.cText
-                opacity: textCol.hr ? 1 : cfg.oTime
-                text: textCol.hr ? Math.floor(textCol.hv.p * 100) + " %" : Logic.formatDate(win.now, cfg.timeFormat)
+                color: textCol.hov ? cfg[textCol.hov.ring.col] : cfg.cText
+                opacity: textCol.hov ? 1 : cfg.oTime
+                text: textCol.hov ? Math.floor(textCol.hov.val.p * 100) + " %" : Logic.formatDate(win.now, cfg.timeFormat)
             }
             Text {
                 width: parent.width
-                visible: textCol.hr === null && cfg.showText && cfg.showDate
+                visible: textCol.hov === null && cfg.showText && cfg.showDate
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 maximumLineCount: 4
@@ -484,15 +489,15 @@ Window {
             }
             Text {
                 width: parent.width
-                visible: textCol.hr !== null || (cfg.showText && cfg.showSub)
+                visible: textCol.hov !== null || (cfg.showText && cfg.showSub)
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 maximumLineCount: 3
                 font.pixelSize: Math.max(6, textCol.base * 0.15)
                 color: cfg.cText
-                opacity: textCol.hr ? 0.85 : cfg.oSub
-                text: textCol.hr
-                      ? textCol.hr.name + " · quedan " + Logic.fmt(textCol.hv.remaining, cfg.showSeconds || textCol.hr.key === "minute")
+                opacity: textCol.hov ? 0.85 : cfg.oSub
+                text: textCol.hov
+                      ? textCol.hov.ring.name + " · quedan " + Logic.fmt(textCol.hov.val.remaining, cfg.showSeconds || textCol.hov.ring.key === "minute")
                       : Logic.daySubtitle(win.t.day, cfg.showSeconds)
             }
         }

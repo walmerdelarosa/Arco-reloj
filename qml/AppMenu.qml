@@ -92,8 +92,8 @@ Platform.Menu {
                 text: modelData
                 checkable: true
                 group: styleGroup
-                checked: menu.conf.style === index
-                onTriggered: menu.conf.style = index
+                checked: !!menu.conf && menu.conf.style === index
+                onTriggered: if (menu.conf) menu.conf.style = index
             }
             onObjectAdded: (index, object) => styleMenu.insertItem(index, object)
             onObjectRemoved: (index, object) => styleMenu.removeItem(object)
