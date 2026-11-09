@@ -3,7 +3,10 @@
 Uso:
     python arco.py                 # backend gráfico por defecto (D3D11 en Windows, Metal en macOS)
     python arco.py --backend opengl  # si el fondo transparente se ve negro
+    python arco.py --selftest        # carga la interfaz, comprueba que no hay errores de QML y sale
 """
+__version__ = "1.2.0"
+
 import argparse
 import os
 import sys
@@ -12,12 +15,14 @@ from pathlib import Path
 if sys.version_info >= (3, 15) or sys.version_info < (3, 10):
     sys.exit("Arco necesita Python 3.10-3.14 (PySide6 aun no admite %d.%d). Usa iniciar.bat." % sys.version_info[:2])
 
-from PySide6.QtCore import QCoreApplication, QObject, QPoint, QRect, QSettings, QUrl, Slot, qInstallMessageHandler
+from PySide6.QtCore import QCoreApplication, QMetaObject, QObject, QPoint, QRect, QSettings, QTimer, QUrl, Slot, qInstallMessageHandler
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication, QMessageBox
+
+from arco_sync import SyncService
 
 BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 QML_DIR = BASE / "qml"
@@ -71,6 +76,14 @@ class Platform(QObject):
         exe = pyw if pyw.exists() else Path(sys.executable)
         return f'"{exe}" "{Path(__file__).resolve()}"'
 
+    @Slot(str)
+    def removeSettingsGroup(self, group: str) -> None:
+        """Borra los ajustes guardados de un reloj eliminado (p. ej. «reloj_3»)."""
+        if group.startswith("reloj_"):
+            s = QSettings()
+            s.remove(group)
+            s.sync()
+
     @Slot(result=bool)
     def autostartSupported(self) -> bool:
         return sys.platform == "win32"
@@ -96,6 +109,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Arco – reloj de progreso")
     ap.add_argument("--backend", choices=["d3d11", "d3d12", "opengl", "vulkan", "metal", "software"],
                     help="fuerza el backend gráfico de Qt Quick")
+    ap.add_argument("--selftest", action="store_true",
+                    help="carga la interfaz y sale con código 1 si QML informa errores (para CI)")
+    ap.add_argument("--version", action="version", version=f"Arco {__version__}")
     args, qt_args = ap.parse_known_args()
     if args.backend:
         os.environ["QSG_RHI_BACKEND"] = args.backend
@@ -103,7 +119,8 @@ def main() -> int:
             os.environ["QT_QUICK_BACKEND"] = "software"
 
     QCoreApplication.setOrganizationName("Arco")
-    QCoreApplication.setApplicationName("Arco Reloj")
+    QCoreApplication.setApplicationName("Arco Reloj Selftest" if args.selftest else "Arco Reloj")
+    QCoreApplication.setApplicationVersion(__version__)
     QQuickStyle.setStyle("Fusion")
     QQuickWindow.setDefaultAlphaBuffer(True)       # ventanas con fondo transparente
 
@@ -121,12 +138,29 @@ def main() -> int:
     engine = QQmlApplicationEngine()
     plat = Platform()
     engine.rootContext().setContextProperty("plat", plat)
+    # Credenciales de Google: junto al programa o en %LOCALAPPDATA%\Arco
+    sync = SyncService([BASE, Path(sys.argv[0]).resolve().parent, LOG.parent], enabled=not args.selftest)
+    engine.rootContext().setContextProperty("sync", sync)
     engine.load(QUrl.fromLocalFile(str(QML_DIR / "main.qml")))
     if not engine.rootObjects():
         detail = "\n".join(_messages[-15:]) or "Sin detalles."
         QMessageBox.critical(None, "Arco no pudo iniciar",
                              f"Error al cargar la interfaz.\n\n{detail}\n\nRegistro completo: {LOG}")
         return 1
+    if args.selftest:
+        # Recorre estilos y ajustes, y deja correr la interfaz para que se evalúen enlaces y temporizadores.
+        root = engine.rootObjects()[0]
+        def run_selftest():
+            if not QMetaObject.invokeMethod(root, "selfTest"):
+                _messages.append("selftest-error: no se pudo llamar a selfTest()")
+        QTimer.singleShot(400, run_selftest)
+        QTimer.singleShot(4000, app.quit)
+        app.exec()
+        qml_errors = [m for m in _messages if ".qml:" in m or "clocklogic.js:" in m or "selftest-error" in m]
+        for m in qml_errors:
+            print("QML:", m, file=sys.stderr)
+        print("selftest:", "FALLO" if qml_errors else "OK", file=sys.stderr)
+        return 1 if qml_errors else 0
     return app.exec()
 
 

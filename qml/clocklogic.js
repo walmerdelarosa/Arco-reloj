@@ -107,6 +107,110 @@ function burnOffset(k, r) {
     return { x: r * f * Math.cos(k * golden), y: r * f * Math.sin(k * golden) };
 }
 
+// ---------- Formatos de hora y fecha con códigos ----------
+var dayNames = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+var dayShort = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+var monthNames = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+                  "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+var monthShort = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+// Semana ISO 8601 (la semana 1 contiene el primer jueves del año).
+function isoWeek(now) {
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var dow = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dow + 3);                       // jueves de esta semana
+    var firstThu = new Date(d.getFullYear(), 0, 4);
+    var fdow = (firstThu.getDay() + 6) % 7;
+    firstThu.setDate(firstThu.getDate() - fdow + 3);
+    return 1 + Math.round((d - firstThu) / 604800000);
+}
+
+function dayOfYear(now) {
+    var a = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((a - Date.UTC(now.getFullYear(), 0, 1)) / 86400000) + 1;
+}
+
+function token(now, c, n) {
+    var H = now.getHours();
+    switch (c) {
+    case "H": return n >= 2 ? pad(H) : "" + H;
+    case "h": var h = (H + 11) % 12 + 1; return n >= 2 ? pad(h) : "" + h;
+    case "m": return n >= 2 ? pad(now.getMinutes()) : "" + now.getMinutes();
+    case "s": return n >= 2 ? pad(now.getSeconds()) : "" + now.getSeconds();
+    case "A": return H < 12 ? "AM" : "PM";
+    case "a": return H < 12 ? "am" : "pm";
+    case "d":
+        if (n === 1) return "" + now.getDate();
+        if (n === 2) return pad(now.getDate());
+        if (n === 3) return dayShort[now.getDay()];
+        return dayNames[now.getDay()];
+    case "M":
+        if (n === 1) return "" + (now.getMonth() + 1);
+        if (n === 2) return pad(now.getMonth() + 1);
+        if (n === 3) return monthShort[now.getMonth()];
+        return monthNames[now.getMonth()];
+    case "y": return n <= 2 ? pad(now.getFullYear() % 100) : "" + now.getFullYear();
+    case "w": return n >= 2 ? pad(isoWeek(now)) : "" + isoWeek(now);
+    case "D": var j = dayOfYear(now); return n >= 3 ? ("00" + j).slice(-3) : "" + j;
+    case "Q": return "" + (Math.floor(now.getMonth() / 3) + 1);
+    }
+    return null;
+}
+
+var TOKENS = "HhmsAadMywDQ";
+
+// Formatea según códigos (H h m s A a d M y w D Q). 'texto' es literal, '' es una comilla
+// y | es un salto de línea.
+function formatDate(now, fmt) {
+    var out = "", i = 0, s = fmt || "";
+    while (i < s.length) {
+        var c = s.charAt(i);
+        if (c === "'") {
+            if (s.charAt(i + 1) === "'") { out += "'"; i += 2; continue; }
+            i++;
+            while (i < s.length) {                         // dentro del literal, '' es una comilla
+                if (s.charAt(i) === "'") {
+                    if (s.charAt(i + 1) === "'") { out += "'"; i += 2; continue; }
+                    i++;
+                    break;
+                }
+                out += s.charAt(i++);
+            }
+            continue;
+        }
+        if (c === "|") { out += "\n"; i++; continue; }
+        if (TOKENS.indexOf(c) < 0) { out += c; i++; continue; }
+        var k = i;
+        while (k < s.length && s.charAt(k) === c) k++;
+        out += token(now, c, k - i);
+        i = k;
+    }
+    return out;
+}
+
+// ¿El formato muestra segundos? (para saber si hay que refrescar cada segundo)
+function usesSeconds(fmt) {
+    return /s/.test((fmt || "").replace(/'[^']*'?/g, ""));
+}
+
+// Hora escrita a mano -> minutos desde las 00:00, o -1 si no es válida.
+// Acepta "8", "08", "8:15", "8.15", "8h15", "815", "0815" y "24:00".
+function parseHM(text) {
+    var t = ("" + text).trim();
+    var m = /^(\d{1,2})(?:\s*[:.hH]\s*(\d{1,2})?)?$/.exec(t);
+    var H, M;
+    if (m) { H = parseInt(m[1], 10); M = m[2] ? parseInt(m[2], 10) : 0; }
+    else if (/^\d{3,4}$/.test(t)) { H = parseInt(t.slice(0, t.length - 2), 10); M = parseInt(t.slice(-2), 10); }
+    else return -1;
+    if (M > 59 || H > 24 || (H === 24 && M > 0)) return -1;
+    return H * 60 + M;
+}
+
+function fmtHM(minutes) {
+    var v = Math.max(0, Math.min(1440, Math.round(minutes)));
+    return pad(Math.floor(v / 60)) + ":" + pad(v % 60);
+}
+
 var palettes = [
     { name: "Aurora",      c: ["#8B5CF6", "#3B82F6", "#06B6D4", "#10B981", "#F59E0B", "#EF4444"] },
     { name: "Atardecer",   c: ["#BE185D", "#F43F5E", "#FB7185", "#F97316", "#FBBF24", "#FEF3C7"] },
@@ -116,4 +220,9 @@ var palettes = [
     { name: "OLED tenue",  c: ["#5B3FA8", "#2F5BA8", "#1F7F8C", "#1F7A55", "#9A6A10", "#9A2E2E"] }
 ];
 
-var styles = ["Anillos", "Segmentos", "Fino", "Neón", "Bloque"];
+var styles = ["Anillos", "Segmentos", "Fino", "Neón", "Bloque",
+              "Barras horizontales", "Barras verticales", "Analógico"];
+
+var timePresets = ["HH:mm", "HH:mm:ss", "h:mm A", "h:mm:ss a", "HH'h'mm"];
+var datePresets = ["dddd d 'de' MMMM", "ddd d MMM yyyy", "dd/MM/yyyy", "d MMM | 'semana' w",
+                   "MMMM yyyy", "'día' DDD 'de' yyyy"];

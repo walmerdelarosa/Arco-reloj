@@ -1,6 +1,6 @@
 const fs=require('fs');
 const src=fs.readFileSync(__dirname + '/../qml/clocklogic.js','utf8').replace('.pragma library','');
-const L=new Function(src+';return {compute,fmt,timeText,daySubtitle,nextDelay,burnOffset,palettes,pad};')();
+const L=new Function(src+';return {compute,fmt,timeText,daySubtitle,nextDelay,burnOffset,palettes,pad,formatDate,usesSeconds,parseHM,fmtHM,isoWeek,dayOfYear,styles,timePresets,datePresets};')();
 const assert=require('assert');
 let d=new Date(2026,10,3,12,0,0,0); let t=L.compute(d,{});
 assert(Math.abs(t.day.p-0.5)<1e-9); assert.equal(t.month.segs,30);
@@ -14,6 +14,9 @@ t=L.compute(new Date(2026,10,3,13,0),{workMode:true,workStart:8,workEnd:18}); as
 assert.equal(L.daySubtitle(t.day,false),'quedan 5 h 00 min de jornada');
 t=L.compute(new Date(2026,10,3,7,15),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false),'jornada en 45 min');
 t=L.compute(new Date(2026,10,3,19,0),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false),'jornada terminada');
+// jornada con minutos escritos a mano: 7:45 a 16:20
+t=L.compute(new Date(2026,10,3,7,40),{workMode:true,workStart:465/60,workEnd:980/60}); assert.equal(L.daySubtitle(t.day,false),'jornada en 5 min');
+t=L.compute(new Date(2026,10,3,16,10),{workMode:true,workStart:465/60,workEnd:980/60}); assert.equal(L.daySubtitle(t.day,false),'quedan 10 min de jornada');
 t=L.compute(new Date(2026,10,3,23,59,30),{}); assert.equal(L.daySubtitle(t.day,false),'quedan 1 min del día'); assert.equal(L.daySubtitle(t.day,true),'quedan 30 s del día');
 // febrero bisiesto 2028
 assert.equal(L.compute(new Date(2028,1,10),{}).month.segs,29);
@@ -28,4 +31,51 @@ for(let k=0;k<500;k++){const o=L.burnOffset(k,8); assert(Math.hypot(o.x,o.y)<=8+
 const a=L.burnOffset(1,8),b=L.burnOffset(2,8); assert(Math.hypot(a.x-b.x,a.y-b.y)>1);
 // sweep a full day: monotonic
 let prev=-1; for(let m=0;m<1440;m+=7){const p=L.compute(new Date(2026,10,3,0,m),{}).day.p; assert(p>=prev); prev=p;}
+
+// ---------- formatos con códigos ----------
+const f=new Date(2026,10,8,20,5,9);   // domingo 8 nov 2026, 20:05:09
+assert.equal(L.formatDate(f,'HH:mm'),'20:05');
+assert.equal(L.formatDate(f,'H:m:s'),'20:5:9');
+assert.equal(L.formatDate(f,'hh:mm:ss A'),'08:05:09 PM');
+assert.equal(L.formatDate(f,'h:mm a'),'8:05 pm');
+assert.equal(L.formatDate(new Date(2026,0,1,0,7),'h:mm A'),'12:07 AM');
+assert.equal(L.formatDate(f,"dddd d 'de' MMMM"),'domingo 8 de noviembre');
+assert.equal(L.formatDate(f,'ddd dd/MM/yy'),'dom 08/11/26');
+assert.equal(L.formatDate(f,'MMM yyyy'),'nov 2026');
+assert.equal(L.formatDate(f,"HH'h'mm"),'20h05');
+assert.equal(L.formatDate(f,"'it''s' HH"),"it's 20");
+assert.equal(L.formatDate(f,"d MMM | 'semana' w"),'8 nov \n semana 45');
+assert.equal(L.formatDate(f,'Q'),'4');
+assert.equal(L.formatDate(f,'DDD'),'312');
+assert.equal(L.formatDate(new Date(2026,0,1),'D'),'1');
+assert.equal(L.formatDate(f,"'sin cierre"),'sin cierre');
+assert.equal(L.formatDate(f,''),'');
+// semana ISO en bordes de año
+assert.equal(L.isoWeek(new Date(2026,0,1)),1);   // jueves
+assert.equal(L.isoWeek(new Date(2027,0,1)),53);  // viernes -> semana 53 de 2026
+assert.equal(L.isoWeek(new Date(2024,11,30)),1); // lunes -> semana 1 de 2025
+assert.equal(L.isoWeek(new Date(2021,0,3)),53);  // domingo
+assert.equal(L.dayOfYear(new Date(2028,11,31)),366);
+assert(L.usesSeconds('HH:mm:ss')); assert(!L.usesSeconds('HH:mm')); assert(!L.usesSeconds("HH 'segs'"));
+for(const p of L.timePresets.concat(L.datePresets)) assert(L.formatDate(f,p).length>0);
+assert.equal(L.styles.length,8);
+
+// ---------- horas escritas a mano ----------
+assert.equal(L.parseHM('8'),480);
+assert.equal(L.parseHM(' 08:15 '),495);
+assert.equal(L.parseHM('8.5'),485);
+assert.equal(L.parseHM('7h45'),465);
+assert.equal(L.parseHM('7:'),420);
+assert.equal(L.parseHM('1730'),1050);
+assert.equal(L.parseHM('930'),570);
+assert.equal(L.parseHM('24:00'),1440);
+assert.equal(L.parseHM('24:01'),-1);
+assert.equal(L.parseHM('25'),-1);
+assert.equal(L.parseHM('8:60'),-1);
+assert.equal(L.parseHM('abc'),-1);
+assert.equal(L.parseHM(''),-1);
+assert.equal(L.fmtHM(495),'08:15');
+assert.equal(L.fmtHM(1440),'24:00');
+for(let v=0;v<=1440;v+=7) assert.equal(L.parseHM(L.fmtHM(v)),v);
+
 console.log('OK – todas las pruebas pasaron');

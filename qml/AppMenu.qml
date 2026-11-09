@@ -1,18 +1,21 @@
 import QtQuick
+import QtQml.Models
 import Qt.labs.platform as Platform
+import "clocklogic.js" as Logic
 
-// Menú nativo, usado tanto en la bandeja del sistema como con clic derecho sobre el reloj.
+// Menú nativo del clic derecho sobre un reloj.
 Platform.Menu {
     id: menu
     property var conf
     property var clock
     property var settingsWindow
+    property var app
 
     function rebind(item, getter) { item.checked = Qt.binding(getter) }
 
     Platform.MenuItem {
-        text: menu.clock && menu.clock.visible ? "Ocultar reloj" : "Mostrar reloj"
-        onTriggered: menu.clock.visible = !menu.clock.visible
+        text: "Ocultar este reloj"
+        onTriggered: menu.clock.visible = false
     }
     Platform.MenuItem {
         text: "Ajustes…"
@@ -21,6 +24,16 @@ Platform.Menu {
     Platform.MenuItem {
         text: "Ayuda: ¿qué hace cada opción?"
         onTriggered: menu.settingsWindow.openHelp()
+    }
+    Platform.MenuSeparator {}
+    Platform.MenuItem {
+        text: "Nuevo reloj para otro monitor (copia este)"
+        onTriggered: menu.app.addClock(menu.clock)
+    }
+    Platform.MenuItem {
+        text: "Cerrar este reloj"
+        enabled: menu.app && menu.app.count > 1
+        onTriggered: menu.app.removeClock(menu.clock)
     }
     Platform.MenuSeparator {}
     Platform.Menu {
@@ -68,13 +81,23 @@ Platform.Menu {
         onTriggered: { menu.conf.antiBurn = checked; menu.rebind(miBurn, () => menu.conf.antiBurn) }
     }
     Platform.Menu {
+        id: styleMenu
         title: "Estilo"
         Platform.MenuItemGroup { id: styleGroup; exclusive: true }
-        Platform.MenuItem { text: "Anillos";   checkable: true; group: styleGroup; checked: menu.conf.style === 0; onTriggered: menu.conf.style = 0 }
-        Platform.MenuItem { text: "Segmentos"; checkable: true; group: styleGroup; checked: menu.conf.style === 1; onTriggered: menu.conf.style = 1 }
-        Platform.MenuItem { text: "Fino";      checkable: true; group: styleGroup; checked: menu.conf.style === 2; onTriggered: menu.conf.style = 2 }
-        Platform.MenuItem { text: "Neón";      checkable: true; group: styleGroup; checked: menu.conf.style === 3; onTriggered: menu.conf.style = 3 }
-        Platform.MenuItem { text: "Bloque";    checkable: true; group: styleGroup; checked: menu.conf.style === 4; onTriggered: menu.conf.style = 4 }
+        Instantiator {
+            model: Logic.styles
+            delegate: Platform.MenuItem {
+                required property int index
+                required property string modelData
+                text: modelData
+                checkable: true
+                group: styleGroup
+                checked: menu.conf.style === index
+                onTriggered: menu.conf.style = index
+            }
+            onObjectAdded: (index, object) => styleMenu.insertItem(index, object)
+            onObjectRemoved: (index, object) => styleMenu.removeItem(object)
+        }
     }
     Platform.MenuSeparator {}
     Platform.MenuItem {

@@ -1,110 +1,74 @@
-# Arco · reloj de progreso siempre visible
+# Arco
 
-Arco es un reloj de escritorio con anillos concéntricos que muestra cuánto ha pasado y cuánto queda del **año, mes, semana, día, hora y minuto**. Sirve para tener siempre a la vista el tiempo que te queda del día o de tu jornada.
+Reloj de escritorio que muestra cuánto ha pasado del año, el mes, la semana, el día, la hora y el minuto. Queda siempre visible, con fondo transparente, y casi no consume recursos.
 
-![Los cinco estilos de Arco: Anillos, Segmentos, Fino, Neón y Bloque](vista_previa_estilos.png)
+![Estilos de Arco](vista_previa_estilos.png)
 
-*Los cinco estilos de dial. Imagen de referencia; la app real se ve igual con tus colores y ajustes.*
+## Funciones
 
-> **Estado:** en pruebas. La versión de Windows se prueba antes de cada entrega.
+- Anillos para año, mes, semana, día (o tu jornada laboral), hora y minuto
+- 8 estilos: anillos, segmentos, fino, neón, bloque, barras horizontales, barras verticales y analógico
+- Un reloj por monitor, cada uno con su configuración
+- Hora y fecha con [formato personalizable](docs/formatos.md)
+- Color y transparencia por elemento
+- Sincronización de la configuración entre equipos con tu cuenta de Google o una carpeta sincronizada
+- Protección contra burn-in para pantallas OLED
+- Inicio con Windows
 
-## Características
+## Descarga
 
-- **Anillos independientes:** activa o desactiva Año, Mes, Semana, Día, Hora y Minuto. Cada uno tiene su color.
-- **Modo jornada:** el anillo «Día» puede medir solo tu horario de trabajo, por ejemplo de 08:00 a 18:00.
-- **Cinco estilos:** Anillos, Segmentos, Fino, Neón y Bloque.
-- **Seis paletas** de colores, incluida una pensada para pantallas OLED.
-- **Siempre visible, fijar posición y dejar pasar los clics** (con opción para desactivarlo desde la bandeja).
-- **Colocación rápida:** centro de la pantalla, esquinas, bordes, paso a otro monitor o coordenadas exactas.
-- **Protección contra burn-in:** desplaza el reloj unos píxeles de forma periódica y suave, y puede atenuar las pistas fijas.
-- **Ayuda integrada:** cada opción de los ajustes tiene un botón «?», y hay una guía rápida.
-- **Bajo consumo:** el dibujo lo hace la GPU y la app no tiene animación continua.
+Descarga el instalador desde [Releases](../../releases/latest). Funciona en Windows 10 y 11, no necesita Python ni permisos de administrador.
 
-## Instalación en Windows
-
-Necesitas Python 3.10 a 3.14. PySide6, la librería gráfica que usa Arco, todavía no es compatible con Python 3.15.
-
-1. Descarga o clona este repositorio y descomprímelo en una carpeta.
-2. Haz doble clic en **`iniciar.bat`**. La primera vez crea un entorno en `.venv` e instala lo necesario; tarda unos minutos.
-3. Arco aparece en tu escritorio, en la esquina superior derecha.
-
-Scripts incluidos:
-
-| Archivo | Para qué sirve |
-|---|---|
-| `iniciar.bat` | Abre Arco sin consola. Úsalo a diario. |
-| `depurar.bat` | Abre Arco con consola para ver los errores. |
-| `build_windows.bat` | Crea `dist\ArcoReloj\ArcoReloj.exe` para usarlo sin Python. |
-| `_preparar.bat` | Prepara el entorno; lo llaman los otros scripts. No hace falta ejecutarlo. |
-
-Si quieres el ejecutable, ejecuta `build_windows.bat`. Para moverlo a otro sitio, copia la carpeta `dist\ArcoReloj` completa, no solo el `.exe`.
-
-### macOS y Linux
-
-```bash
-python3.13 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python arco.py
-```
+Windows puede mostrar un aviso de SmartScreen porque el instalador no está firmado: **Más información → Ejecutar de todas formas**.
 
 ## Uso
 
-| Acción | Cómo |
+| | |
 |---|---|
-| Mover | Arrastrar el reloj |
-| Cambiar tamaño | Rueda del ratón sobre el reloj (90–1800 px) |
-| Cambiar opacidad | Mayús + rueda del ratón |
-| Abrir ajustes | Doble clic sobre el reloj, o clic derecho → Ajustes… |
-| Ver un anillo | Pasa el ratón por encima: el centro muestra su nombre, su porcentaje y el tiempo que queda |
-| Ocultar o mostrar | Clic en el icono de la bandeja (junto al reloj de Windows) |
-| Colocar el reloj | Clic derecho → Posición, o Ajustes → Posición |
-| Ver la ayuda | Botones «?» en Ajustes, «Guía rápida», o clic derecho → Ayuda |
+| Mover | Arrastrar |
+| Tamaño | Rueda del ratón |
+| Opacidad | Mayús + rueda |
+| Ajustes | Doble clic |
+| Más opciones | Clic derecho |
+| Mostrar u ocultar | Clic en el icono de la bandeja |
 
-## Ajustes
+Para añadir un reloj en otro monitor: clic derecho → **Nuevo reloj para otro monitor**.
 
-- **Anillos:** qué unidades mostrar, su color y la paleta general.
-- **Estilo y tamaño:** estilo visual, tamaño, opacidad, grosor, intensidad de las pistas y disco de fondo.
-- **Posición:** cuadrícula 3×3, centrar, pasar de monitor, mover paso a paso y coordenadas X e Y.
-- **Texto central:** hora, segundos, formato de 12 h y movimiento suave del segundero.
-- **Día o jornada:** horario de inicio y fin para el anillo «Día».
-- **Ventana:** siempre visible, fijar posición y tamaño, dejar pasar los clics e iniciar con Windows.
-- **Protección contra burn-in:** radio y frecuencia del desplazamiento.
+## Sincronización
 
-Los ajustes y la posición se guardan automáticamente.
+En **Ajustes → Sincronización** elige una de estas opciones:
 
-## Consumo de recursos
+- **Cuenta de Google**: Arco guarda la configuración en una carpeta oculta de tu Drive y no puede ver tus otros archivos.
+- **Carpeta sincronizada**: cualquier carpeta de Google Drive para escritorio, OneDrive o Dropbox.
 
-- La GPU dibuja los arcos mediante Qt Quick (Direct3D 11 en Windows, Metal en macOS, OpenGL o Vulkan).
-- No hay bucle de animación. La app se actualiza una vez por segundo, o una vez por minuto si apagas el anillo «Minuto» y los segundos.
-- Oculta, no hace ningún trabajo.
-- El «movimiento suave» es opcional: redibuja unas 30 veces por segundo y usa algo más de GPU.
-- La memoria depende de Qt. Es del orden de 60 a 120 MB, y el uso de CPU en reposo es muy bajo.
+La posición de los relojes no se sincroniza, porque depende de los monitores de cada equipo.
 
-## Solución de problemas
+## Desde el código
 
-- **El fondo se ve negro en vez de transparente:** inicia con `python arco.py --backend opengl`. También puedes probar `--backend d3d12`.
-- **Activaste «dejar pasar los clics» y no puedes tocar el reloj:** desactívalo desde el icono de la bandeja.
-- **No aparece sobre juegos a pantalla completa exclusiva:** es una limitación del sistema operativo. En modo ventana sin bordes sí funciona.
-- **Errores al iniciar:** ejecuta `depurar.bat`. El registro completo queda en `%LOCALAPPDATA%\Arco\arco.log`.
+Requiere Python 3.10–3.14.
 
-## Estructura del proyecto
-
-```
-arco.py                 lanzador (Python/PySide6), inicio automático y funciones del sistema
-qml/main.qml            ventana, actualización, anti burn-in e interacción
-qml/Ring.qml            un anillo, con sus cinco estilos
-qml/SettingsWindow.qml  ventana de ajustes y guía rápida
-qml/AppMenu.qml         menú de la bandeja y del clic derecho
-qml/clocklogic.js       cálculos de tiempo y paletas
-tests/test_logic.js     pruebas de los cálculos de tiempo (Node.js)
-requirements.txt        dependencias (PySide6)
+```bash
+pip install -r requirements.txt
+python arco.py
 ```
 
-Para ejecutar las pruebas de la lógica de tiempo:
+En Windows también puedes usar `iniciar.bat`, que crea el entorno virtual la primera vez. `build_installer.bat` genera el instalador (requiere [Inno Setup 6](https://jrsoftware.org/isinfo.php)).
+
+Pruebas:
 
 ```bash
 node tests/test_logic.js
+python tests/test_sync.py
+python arco.py --selftest
 ```
+
+Para publicar una versión, cambia `__version__` en `arco.py` y sube una etiqueta (`git tag v1.2.0 && git push --tags`). GitHub Actions compila el instalador y lo adjunta al release. Para incluir el inicio de sesión con Google, consulta [docs/google-sync.md](docs/google-sync.md).
+
+## Problemas frecuentes
+
+- **El fondo se ve negro:** inicia con `--backend opengl`.
+- **No puedo hacer clic en el reloj:** desactiva «dejar pasar los clics» desde el icono de la bandeja.
+- **Errores al iniciar:** revisa `%LOCALAPPDATA%\Arco\arco.log` o usa `depurar.bat`.
 
 ## Licencia
 

@@ -1,0 +1,107 @@
+# Compila Arco para Windows y publica el instalador en un release de GitHub.
+#
+# Se ejecuta al subir una etiqueta de versión:
+#   git tag v1.1.0 && git push origin v1.1.0
+# También se puede lanzar a mano (pestaña Actions → «Release Windows» → Run workflow);
+# en ese caso solo deja los archivos como artefactos, sin crear release.
+name: Release Windows
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Versión
+        id: ver
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") }
+          else { $v = (Select-String -Path arco.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Versión: $v"
+
+      - name: Dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Pruebas de la lógica
+        run: |
+          node tests/test_logic.js
+          python tests/test_sync.py
+
+      - name: Autoprueba de la interfaz (QML)
+        shell: pwsh
+        run: |
+          # D3D11 con WARP (renderizador por software de Windows): los runners no tienen GPU.
+          $env:QSG_RHI_PREFER_SOFTWARE_RENDERER = "1"
+          python arco.py --selftest
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # Para activar «Iniciar sesión con Google», crea los secretos GOOGLE_CLIENT_ID y
+      # GOOGLE_CLIENT_SECRET en Settings → Secrets and variables → Actions (ver docs/google-sync.md).
+      - name: Ejecutable (PyInstaller)
+        shell: pwsh
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          $extra = @()
+          if ($env:GOOGLE_CLIENT_ID) {
+            @{ client_id = $env:GOOGLE_CLIENT_ID; client_secret = $env:GOOGLE_CLIENT_SECRET } |
+              ConvertTo-Json | Set-Content -Encoding utf8NoBOM google_oauth.json
+            $extra = @("--add-data", "google_oauth.json;.")
+            Write-Host "Incluye inicio de sesión con Google."
+          } else {
+            Write-Host "Sin secretos de Google: la sincronización solo ofrecerá carpeta."
+          }
+          python -m PyInstaller --noconfirm --clean --windowed --name ArcoReloj --icon icon.ico --add-data "qml;qml" @extra arco.py
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Instalador (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" installer\ArcoReloj.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Versión portátil (zip)
+        shell: pwsh
+        run: Compress-Archive -Path dist\ArcoReloj\* -DestinationPath "dist\ArcoReloj-${{ steps.ver.outputs.version }}-portable.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ArcoReloj-${{ steps.ver.outputs.version }}
+          path: |
+            dist/ArcoReloj-*-setup.exe
+            dist/ArcoReloj-*-portable.zip
+
+      - name: Publicar release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Arco ${{ steps.ver.outputs.version }}
+          body_path: CHANGELOG-release.md
+          files: |
+            dist/ArcoReloj-*-setup.exe
+            dist/ArcoReloj-*-portable.zip
