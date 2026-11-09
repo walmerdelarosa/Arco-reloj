@@ -4,211 +4,449 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 import "clocklogic.js" as Logic
 
-// Ajustes de un reloj. Un índice a la izquierda muestra una sola sección a la vez.
+// Ajustes de un reloj, con aspecto similar a PowerToys / Windows 11:
+// índice a la izquierda con desplegables y una sola página con tarjetas desplegables.
+// El índice resalta la sección visible mientras te desplazas.
 ApplicationWindow {
     id: sw
     property var conf
     property var clock
     property var app
 
-    readonly property var pageNames: ["Relojes", "Anillos", "Estilo y tamaño", "Transparencias",
-                                      "Texto y formato", "Jornada", "Posición", "Ventana",
-                                      "Sincronización", "Burn-in", "Guía rápida"]
-    readonly property int pageCount: pageNames.length
-    readonly property int helpPage: 10
+    // ---------- Idioma y tema ----------
+    function tr(es, en) { return ui.lang === "en" ? en : es }
+    readonly property bool dark: ui.dark
+    readonly property color cBg:         dark ? "#202020" : "#f3f3f3"
+    readonly property color cCard:       dark ? "#2b2b2b" : "#fbfbfb"
+    readonly property color cCardHover:  dark ? "#323232" : "#f5f5f5"
+    readonly property color cStroke:     dark ? "#1d1d1d" : "#e5e5e5"
+    readonly property color cLine:       dark ? "#3a3a3a" : "#ececec"
+    readonly property color cText:       dark ? "#ffffff" : "#1b1b1b"
+    readonly property color cText2:      dark ? "#c8c8c8" : "#5d5d5d"
+    readonly property color cAccent:     dark ? "#60cdff" : "#005fb8"
+    readonly property color cAccentText: dark ? "#000000" : "#ffffff"
+    readonly property color cNavSel:     dark ? "#2d2d2d" : "#eaeaea"
+    readonly property color cNavHover:   dark ? "#292929" : "#ededed"
+    readonly property color cControl:    dark ? "#373737" : "#ffffff"
+    readonly property bool icons: Qt.platform.os === "windows"     // Segoe MDL2 Assets
+    readonly property string iconFont: "Segoe MDL2 Assets"
 
-    title: "Arco · Ajustes" + (app && app.count > 1 && clock ? " · reloj " + clock.number : "")
-    width: 700
-    height: 620
-    minimumWidth: 560
-    minimumHeight: 360
+    title: "Arco · " + tr("Ajustes", "Settings") + (app && app.count > 1 && clock ? " · " + tr("reloj ", "clock ") + clock.number : "")
+    width: 980
+    height: 720
+    minimumWidth: 760
+    minimumHeight: 460
     visible: false
-    // Ventana normal e independiente del reloj: barra de título con mover, minimizar, maximizar y cerrar.
     transientParent: null
     flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint
            | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint
            | (conf && conf.onTop ? Qt.WindowStaysOnTopHint : 0)
 
-    palette.window: "#15161b"
-    palette.windowText: "#e8e8ee"
-    palette.base: "#1f2028"
-    palette.alternateBase: "#262731"
-    palette.text: "#e8e8ee"
-    palette.button: "#262731"
-    palette.buttonText: "#e8e8ee"
-    palette.highlight: "#7c5cff"
-    palette.highlightedText: "#ffffff"
-    palette.mid: "#3a3b47"
-    palette.light: "#3a3b47"
-    palette.dark: "#0c0c10"
-    palette.placeholderText: "#8a8a99"
-    palette.toolTipBase: "#2a2b36"
-    palette.toolTipText: "#f0f0f5"
-    color: palette.window
+    font.family: Qt.platform.os === "windows" ? "Segoe UI" : Qt.application.font.family
+    font.pixelSize: 13
+    color: cBg
+    palette.window: cBg
+    palette.windowText: cText
+    palette.base: cControl
+    palette.alternateBase: cCard
+    palette.text: cText
+    palette.button: cControl
+    palette.buttonText: cText
+    palette.highlight: cAccent
+    palette.highlightedText: cAccentText
+    palette.mid: cLine
+    palette.light: cLine
+    palette.midlight: cLine
+    palette.dark: cStroke
+    palette.shadow: cStroke
+    palette.placeholderText: cText2
+    palette.toolTipBase: cCard
+    palette.toolTipText: cText
 
+    // ---------- Índice ----------
+    readonly property var nav: [
+        { key: "appearance", icon: "", es: "Apariencia", en: "Appearance", items: [
+            { key: "style",    es: "Estilo y tamaño",         en: "Style and size" },
+            { key: "opacity",  es: "Transparencia general",   en: "Overall opacity" },
+            { key: "rings",    es: "Anillos",                 en: "Rings" },
+            { key: "backdrop", es: "Fondo",                   en: "Background" },
+            { key: "analog",   es: "Reloj analógico",         en: "Analog clock" } ] },
+        { key: "text", icon: "", es: "Texto", en: "Text", items: [
+            { key: "textgeneral", es: "Texto central",        en: "Center text" },
+            { key: "time",        es: "Hora",                 en: "Time" },
+            { key: "date",        es: "Fecha",                en: "Date" },
+            { key: "remaining",   es: "Tiempo restante",      en: "Time remaining" },
+            { key: "codes",       es: "Códigos de formato",   en: "Format codes" } ] },
+        { key: "clocks", icon: "", es: "Relojes y posición", en: "Clocks and position", items: [
+            { key: "clocklist", es: "Relojes",  en: "Clocks" },
+            { key: "position",  es: "Posición", en: "Position" } ] },
+        { key: "behavior", icon: "", es: "Comportamiento", en: "Behavior", items: [
+            { key: "window",  es: "Ventana",                 en: "Window" },
+            { key: "workday", es: "Jornada laboral",         en: "Workday" },
+            { key: "burnin",  es: "Protección burn-in",      en: "Burn-in protection" } ] },
+        { key: "syncCat", icon: "", es: "Sincronización", en: "Sync", items: [
+            { key: "sync", es: "Entre equipos", en: "Across devices" } ] },
+        { key: "appCat", icon: "", es: "Aplicación", en: "App", items: [
+            { key: "language", es: "Idioma y tema",  en: "Language and theme" },
+            { key: "about",    es: "Ayuda",          en: "Help" } ] }
+    ]
+    readonly property var order: {
+        const o = []
+        nav.forEach(c => { o.push(c.key); c.items.forEach(i => o.push(i.key)) })
+        return o
+    }
+    function navText(o) { return ui.lang === "en" ? o.en : o.es }
+    function catOf(key) {
+        for (let i = 0; i < nav.length; i++) {
+            if (nav[i].key === key) return key
+            for (let j = 0; j < nav[i].items.length; j++) if (nav[i].items[j].key === key) return nav[i].key
+        }
+        return ""
+    }
+    function navItemVisible(key) { return key !== "analog" || (clock && clock.analog) }
+
+    property var sections: ({})
+    property string current: "appearance"
+    readonly property string currentCat: catOf(current)
+    function registerSection(key, item) { sections[key] = item }
+
+    function updateSpy() {
+        let best = order[0]
+        const atEnd = flick.contentY >= flick.contentHeight - flick.height - 4
+        for (let i = 0; i < order.length; i++) {
+            const it = sections[order[i]]
+            if (!it || !it.visible) continue
+            const y = it.mapToItem(col, 0, 0).y
+            if (atEnd || y <= flick.contentY + 90) best = order[i]
+            else break
+        }
+        current = best
+    }
+
+    property string pendingKey: ""
+    function scrollTo(key) {
+        const it = sections[key]
+        if (!it) return
+        if (it.expanded !== undefined) it.expanded = true
+        pendingKey = key
+        scrollTimer.restart()            // espera a que el diseño se recoloque tras desplegar
+    }
+    Timer {
+        id: scrollTimer
+        interval: 40
+        onTriggered: {
+            const it = sw.sections[sw.pendingKey]
+            if (!it) return
+            const y = it.mapToItem(col, 0, 0).y + col.y - 16
+            scrollAnim.to = Math.max(0, Math.min(y, flick.contentHeight - flick.height))
+            scrollAnim.restart()
+        }
+    }
+
+    function expandAll() {
+        for (const k in sections) if (sections[k].expanded !== undefined) sections[k].expanded = true
+    }
     function openIt() {
         if (visibility === Window.Minimized) showNormal(); else show()
         raise(); requestActivate()
     }
-    function showPage(i) { nav.currentIndex = Math.max(0, Math.min(pageCount - 1, i)) }
-    function openHelp() { openIt(); showPage(helpPage) }
+    function openHelp() { openIt(); scrollTo("about") }
 
     ColorDialog {
         id: colorDlg
         property string key: ""
-        title: "Elegir color"
+        title: sw.tr("Elegir color", "Choose a color")
         onAccepted: sw.conf[key] = selectedColor.toString()
     }
-    FolderDialog {
-        id: folderDlg
-        title: "Carpeta para sincronizar la configuración"
-        onAccepted: sync.setFolder(selectedFolder.toString())
-    }
-
     function pickColor(key) {
         colorDlg.key = key
         colorDlg.selectedColor = conf[key]
         colorDlg.open()
     }
-
-    // ---------- Componentes ----------
-    component Section: Label {
-        Layout.topMargin: 14
-        font.bold: true
-        font.pixelSize: 13
-        color: "#b9a8ff"
+    FolderDialog {
+        id: folderDlg
+        title: sw.tr("Carpeta para sincronizar la configuración", "Folder used to sync settings")
+        onAccepted: sync.setFolder(selectedFolder.toString())
     }
 
-    // Ayuda discreta: un «?» pequeño y tenue. Al pasar el ratón muestra la explicación;
-    // un clic la deja fija.
-    component Help: Rectangle {
-        id: hb
-        property string tip: ""
-        property bool pinned: false
-        readonly property bool active: hbArea.containsMouse || pinned
-        visible: tip !== ""
-        implicitWidth: 14; implicitHeight: 14; radius: 7
-        color: active ? "#7c5cff40" : "transparent"
-        border.color: active ? "#7c5cffaa" : "#ffffff1f"
-        Text {
-            anchors.centerIn: parent
-            text: "?"
-            color: hb.active ? "#ffffff" : "#7d7d8c"
-            font.pixelSize: 9
-            font.bold: true
-        }
-        MouseArea {
-            id: hbArea
-            anchors.fill: parent
-            anchors.margins: -4                    // zona de clic algo mayor que el dibujo
-            hoverEnabled: true
-            cursorShape: Qt.WhatsThisCursor
-            onEntered: tt.open()
-            onExited: if (!hb.pinned) tt.close()
-            onClicked: { hb.pinned = !hb.pinned; if (hb.pinned) tt.open(); else tt.close() }
-        }
-        ToolTip {
-            id: tt
-            delay: 250
-            x: -width + hb.width
-            y: hb.height + 6
-            width: Math.min(320, sw.width - 40)
-            contentItem: Text {
-                text: hb.tip
-                wrapMode: Text.WordWrap
-                color: "#f0f0f5"
-                font.pixelSize: 12
-                lineHeight: 1.15
+    // =====================================================================
+    // Componentes
+    // =====================================================================
+
+    // Interruptor estilo Windows 11, con «Activado / Desactivado» a la izquierda.
+    // Con «key» lee y escribe sw.conf[key]; sin ella, se usa checked/onToggled desde fuera.
+    component Toggle: Switch {
+        id: tg
+        property string key: ""
+        property bool label: true
+        checked: key !== "" && !!sw.conf[key]
+        onToggled: if (key !== "") sw.conf[key] = checked
+        padding: 0
+        indicator: Rectangle {
+            implicitWidth: 40; implicitHeight: 20; radius: 10
+            x: tg.width - width
+            y: (tg.height - height) / 2
+            color: tg.checked ? (tg.enabled ? sw.cAccent : sw.cLine) : "transparent"
+            border.color: tg.checked ? color : sw.cText2
+            opacity: tg.enabled ? 1 : 0.5
+            Rectangle {
+                width: tg.pressed ? 14 : 12; height: 12; radius: 6
+                y: 4
+                x: tg.checked ? parent.width - width - 4 : 4
+                color: tg.checked ? sw.cAccentText : sw.cText2
+                Behavior on x { NumberAnimation { duration: 120 } }
             }
-            background: Rectangle { color: "#2a2b36"; radius: 6; border.color: "#7c5cff80" }
-            onClosed: hb.pinned = false
         }
+        contentItem: Item {
+            implicitWidth: tg.label ? 132 : 40
+            implicitHeight: 24
+            Text {
+                visible: tg.label
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right
+                anchors.rightMargin: 52
+                text: tg.checked ? sw.tr("Activado", "On") : sw.tr("Desactivado", "Off")
+                color: sw.cText
+                opacity: tg.enabled ? 1 : 0.5
+                font.pixelSize: 13
+            }
+        }
+    }
+
+    // Fila de ajuste: título y descripción a la izquierda, control a la derecha.
+    component SRow: Item {
+        id: r
+        property string title: ""
+        property string desc: ""
+        property bool line: true
+        property int indent: 0
+        default property alias control: slot.data
+        Layout.fillWidth: true
+        implicitHeight: Math.max(56, Math.max(txt.implicitHeight, slot.implicitHeight) + 24)
+        Rectangle { visible: r.line; width: parent.width; height: 1; color: sw.cLine }
+        ColumnLayout {
+            id: txt
+            anchors.left: parent.left
+            anchors.leftMargin: 18 + r.indent
+            anchors.right: slot.left
+            anchors.rightMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
+            Label {
+                Layout.fillWidth: true
+                text: r.title
+                color: sw.cText
+                font.pixelSize: 14
+                wrapMode: Text.WordWrap
+                opacity: r.enabled ? 1 : 0.5
+            }
+            Label {
+                Layout.fillWidth: true
+                visible: r.desc !== ""
+                text: r.desc
+                color: sw.cText2
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+                opacity: r.enabled ? 1 : 0.5
+            }
+        }
+        RowLayout {
+            id: slot
+            anchors.right: parent.right
+            anchors.rightMargin: 18
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 10
+        }
+    }
+
+    // Fila que ocupa todo el ancho (campos de formato, cuadrícula de posición…).
+    component WideRow: Item {
+        id: wr
+        default property alias content: wcol.data
+        property bool line: true
+        Layout.fillWidth: true
+        implicitHeight: wcol.implicitHeight + 24
+        Rectangle { visible: wr.line; width: parent.width; height: 1; color: sw.cLine }
+        ColumnLayout {
+            id: wcol
+            x: 18
+            y: 12
+            width: parent.width - 36
+            spacing: 6
+        }
+    }
+
+    // Tarjeta desplegable. Se registra en el índice con «key».
+    component Expander: Rectangle {
+        id: ex
+        property string key: ""
+        property string title: ""
+        property string desc: ""
+        property string icon: ""
+        property bool expanded: false
+        default property alias content: body.data
+        Layout.fillWidth: true
+        implicitHeight: head.height + (expanded ? body.implicitHeight : 0)
+        radius: 6
+        color: sw.cCard
+        border.color: sw.cStroke
+        clip: true
+        Component.onCompleted: sw.registerSection(key, ex)
+        onImplicitHeightChanged: Qt.callLater(sw.updateSpy)
+
+        Rectangle {
+            id: head
+            width: parent.width
+            height: Math.max(66, headTxt.implicitHeight + 28)
+            radius: 6
+            color: headHover.hovered ? sw.cCardHover : "transparent"
+            Text {
+                id: headIcon
+                visible: sw.icons && ex.icon !== ""
+                x: 18
+                anchors.verticalCenter: parent.verticalCenter
+                text: ex.icon
+                font.family: sw.iconFont
+                font.pixelSize: 18
+                color: sw.cText
+            }
+            ColumnLayout {
+                id: headTxt
+                anchors.left: parent.left
+                anchors.leftMargin: headIcon.visible ? 54 : 18
+                anchors.right: chevron.left
+                anchors.rightMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                Label { Layout.fillWidth: true; text: ex.title; color: sw.cText; font.pixelSize: 14; wrapMode: Text.WordWrap }
+                Label {
+                    Layout.fillWidth: true
+                    visible: ex.desc !== ""
+                    text: ex.desc
+                    color: sw.cText2
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+            }
+            Text {
+                id: chevron
+                anchors.right: parent.right
+                anchors.rightMargin: 20
+                anchors.verticalCenter: parent.verticalCenter
+                text: sw.icons ? (ex.expanded ? "" : "") : (ex.expanded ? "▴" : "▾")
+                font.family: sw.icons ? sw.iconFont : sw.font.family
+                font.pixelSize: sw.icons ? 12 : 16
+                color: sw.cText
+            }
+            HoverHandler { id: headHover; cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: ex.expanded = !ex.expanded }
+        }
+        ColumnLayout {
+            id: body
+            y: head.height
+            width: parent.width
+            spacing: 0
+            visible: ex.expanded
+        }
+    }
+
+    // Título de categoría (también registrado para el índice)
+    component CatHeader: Label {
+        id: ch
+        property string key: ""
+        Layout.topMargin: 22
+        Layout.bottomMargin: 4
+        font.pixelSize: 20
+        font.weight: Font.DemiBold
+        color: sw.cText
+        Component.onCompleted: sw.registerSection(key, ch)
     }
 
     component Swatch: Rectangle {
         property string key
-        implicitWidth: 34; implicitHeight: 22; radius: 5
+        implicitWidth: 32; implicitHeight: 24; radius: 4
         color: sw.conf[key]
-        border.color: "#ffffff40"
+        border.color: sw.cLine
+        border.width: 1
         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: sw.pickColor(parent.key) }
     }
 
-    component SliderRow: RowLayout {
-        property alias label: lbl.text
-        property alias from: sl.from
-        property alias to: sl.to
-        property alias stepSize: sl.stepSize
-        property string key
-        property int decimals: 2
-        property string suffix: ""
-        property real factor: 1
-        property string help: ""
-        Layout.fillWidth: true
-        Label { id: lbl; Layout.preferredWidth: 150; elide: Text.ElideRight }
+    // Deslizador con su valor. Con «key» usa sw.conf[key]; si no, getter/setter.
+    component SliderCtl: RowLayout {
+        id: sc
+        property string key: ""
+        property var getter: null
+        property var setter: null
+        property real lo: 0
+        property real hi: 1
+        property real step: 0
+        property real factor: 100
+        property int decimals: 0
+        property string suffix: " %"
+        property int sliderWidth: 200
+        spacing: 8
         Slider {
             id: sl
-            Layout.fillWidth: true
-            value: sw.conf[parent.key]
-            onMoved: sw.conf[parent.key] = value
+            Layout.preferredWidth: sc.sliderWidth
+            from: sc.lo
+            to: sc.hi
+            stepSize: sc.step
+            value: sc.getter ? sc.getter() : (sc.key !== "" ? sw.conf[sc.key] : 0)
+            onMoved: {
+                if (sc.setter) sc.setter(value)
+                else if (sc.key !== "") sw.conf[sc.key] = value
+            }
         }
         Label {
-            Layout.preferredWidth: 62
+            Layout.preferredWidth: 58
             horizontalAlignment: Text.AlignRight
-            text: (sl.value * parent.factor).toFixed(parent.decimals) + parent.suffix
-            opacity: 0.8
+            text: (sl.value * sc.factor).toFixed(sc.decimals) + sc.suffix
+            color: sw.cText2
         }
-        Help { tip: parent.help }
     }
 
-    // Casilla con ayuda a la derecha
-    component Opt: RowLayout {
-        property string key
-        property alias text: cb.text
-        property string help: ""
-        Layout.fillWidth: true
-        CheckBox {
-            id: cb
-            Layout.fillWidth: true
-            checked: sw.conf[parent.key]
-            onToggled: sw.conf[parent.key] = checked
-        }
-        Help { tip: parent.help }
-    }
-
-    // Campo de formato con plantillas y vista previa
-    component FormatRow: ColumnLayout {
+    // Formato con códigos: campo, plantillas y vista previa
+    component FormatRow: Item {
         id: fr
         property string key
         property var presets: []
         Layout.fillWidth: true
-        Layout.leftMargin: 28
-        spacing: 2
+        implicitHeight: frCol.implicitHeight + 24
+        Rectangle { width: parent.width; height: 1; color: sw.cLine }
+        ColumnLayout {
+        id: frCol
+        x: 18
+        y: 12
+        width: parent.width - 36
+        spacing: 6
         RowLayout {
             Layout.fillWidth: true
             TextField {
                 Layout.fillWidth: true
                 text: sw.conf[fr.key]
                 selectByMouse: true
-                placeholderText: "Escribe los códigos, p. ej. HH:mm"
+                placeholderText: sw.tr("Códigos, p. ej. HH:mm", "Codes, e.g. HH:mm")
                 onTextEdited: sw.conf[fr.key] = text
             }
             ComboBox {
-                Layout.preferredWidth: 150
+                Layout.preferredWidth: 170
                 model: fr.presets
-                displayText: "Plantillas"
+                displayText: sw.tr("Plantillas", "Presets")
                 onActivated: (i) => sw.conf[fr.key] = fr.presets[i]
             }
         }
         Label {
             Layout.fillWidth: true
             wrapMode: Text.Wrap
-            opacity: 0.65
-            font.pixelSize: 11
-            text: "Vista previa: " + (sw.clock ? Logic.formatDate(sw.clock.now, sw.conf[fr.key]).replace(/\n/g, " ⏎ ") : "")
+            color: sw.cText2
+            font.pixelSize: 12
+            text: sw.tr("Vista previa: ", "Preview: ")
+                  + (sw.clock ? Logic.formatDate(sw.clock.now, sw.conf[fr.key], ui.lang).replace(/\n/g, " ⏎ ") : "")
+        }
         }
     }
 
-    // Hora de la jornada: flechas en pasos de 30 min o cualquier hora escrita a mano
+    // Hora de la jornada: flechas de 30 en 30 min o cualquier hora escrita
     component TimeSpin: SpinBox {
         id: ts
         property string key
@@ -225,602 +463,821 @@ ApplicationWindow {
     component PosButton: Button {
         property real h
         property real v
-        implicitWidth: 52; implicitHeight: 34
-        font.pixelSize: 16
+        implicitWidth: 46; implicitHeight: 34
+        font.pixelSize: 15
         onClicked: sw.clock.place(h, v)
     }
 
-    // ---------- Estructura: índice + página ----------
+    // =====================================================================
+    // Estructura: índice + contenido
+    // =====================================================================
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        Rectangle {
+        // ---------- Índice ----------
+        Item {
             Layout.fillHeight: true
-            Layout.preferredWidth: 176
-            color: "#101116"
+            Layout.preferredWidth: 270
 
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 10
-                spacing: 6
+                spacing: 2
 
-                Label {
-                    text: "Ajustes de Arco"
-                    font.pixelSize: 15
-                    font.bold: true
-                }
-                Label {
-                    visible: sw.app && sw.app.count > 1
-                    text: sw.clock ? "Reloj " + sw.clock.number + " de " + (sw.app ? sw.app.count : 1) : ""
-                    opacity: 0.6
-                    font.pixelSize: 11
-                }
-                ListView {
-                    id: nav
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                RowLayout {
+                    Layout.leftMargin: 8
                     Layout.topMargin: 6
-                    clip: true
-                    spacing: 1
-                    currentIndex: 0
-                    model: sw.pageNames
-                    boundsBehavior: Flickable.StopAtBounds
-                    delegate: ItemDelegate {
-                        required property int index
-                        required property string modelData
-                        width: ListView.view.width
-                        height: 32
-                        text: modelData
-                        font.pixelSize: 13
-                        highlighted: ListView.isCurrentItem
-                        onClicked: nav.currentIndex = index
+                    Layout.bottomMargin: 12
+                    spacing: 10
+                    Image { source: "icon.svg"; sourceSize.width: 22; sourceSize.height: 22 }
+                    Label { text: "Arco"; font.pixelSize: 15; font.weight: Font.DemiBold; color: sw.cText }
+                    Label {
+                        visible: !!sw.app && sw.app.count > 1
+                        text: sw.clock ? "· " + sw.tr("reloj ", "clock ") + sw.clock.number : ""
+                        color: sw.cText2
                     }
                 }
+
+                Flickable {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    contentHeight: navCol.implicitHeight
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                    Column {
+                        id: navCol
+                        width: parent.width
+                        spacing: 2
+
+                        Repeater {
+                            model: sw.nav
+                            delegate: Column {
+                                id: catDel
+                                required property var modelData
+                                property bool open: false
+                                readonly property bool isCur: sw.currentCat === modelData.key
+                                width: navCol.width
+                                spacing: 2
+
+                                Rectangle {
+                                    width: parent.width
+                                    height: 38
+                                    radius: 5
+                                    color: catDel.isCur ? sw.cNavSel : (catHover.hovered ? sw.cNavHover : "transparent")
+                                    Rectangle {
+                                        visible: catDel.isCur
+                                        x: 0; width: 3; height: 16; radius: 2
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        color: sw.cAccent
+                                    }
+                                    Text {
+                                        id: catIcon
+                                        visible: sw.icons
+                                        x: 14
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: catDel.modelData.icon
+                                        font.family: sw.iconFont
+                                        font.pixelSize: 16
+                                        color: sw.cText
+                                    }
+                                    Label {
+                                        x: sw.icons ? 44 : 14
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width - x - 40
+                                        elide: Text.ElideRight
+                                        text: sw.navText(catDel.modelData)
+                                        color: sw.cText
+                                        font.pixelSize: 14
+                                    }
+                                    HoverHandler { id: catHover; cursorShape: Qt.PointingHandCursor }
+                                    MouseArea {
+                                        anchors.left: parent.left
+                                        anchors.right: chevronArea.left
+                                        height: parent.height
+                                        onClicked: { catDel.open = true; sw.scrollTo(catDel.modelData.key) }
+                                    }
+                                    // Desplegable del índice
+                                    MouseArea {
+                                        id: chevronArea
+                                        anchors.right: parent.right
+                                        width: 36
+                                        height: parent.height
+                                        onClicked: catDel.open = !(catDel.open || catDel.isCur)
+                                    }
+                                    Text {
+                                        anchors.right: parent.right
+                                        anchors.rightMargin: 12
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: sw.icons ? ((catDel.open || catDel.isCur) ? "" : "")
+                                                       : ((catDel.open || catDel.isCur) ? "▴" : "▾")
+                                        font.family: sw.icons ? sw.iconFont : sw.font.family
+                                        font.pixelSize: sw.icons ? 10 : 14
+                                        color: sw.cText2
+                                    }
+                                }
+
+                                Repeater {
+                                    model: (catDel.open || catDel.isCur) ? catDel.modelData.items : []
+                                    delegate: Rectangle {
+                                        id: subDel
+                                        required property var modelData
+                                        readonly property bool isCur: sw.current === modelData.key
+                                        visible: sw.navItemVisible(modelData.key)
+                                        width: navCol.width
+                                        height: visible ? 32 : 0
+                                        radius: 5
+                                        color: isCur ? sw.cNavSel : (subHover.hovered ? sw.cNavHover : "transparent")
+                                        Label {
+                                            x: sw.icons ? 44 : 28
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: parent.width - x - 10
+                                            elide: Text.ElideRight
+                                            text: sw.navText(subDel.modelData)
+                                            color: subDel.isCur ? sw.cText : sw.cText2
+                                            font.pixelSize: 13
+                                        }
+                                        HoverHandler { id: subHover; cursorShape: Qt.PointingHandCursor }
+                                        TapHandler { onTapped: sw.scrollTo(subDel.modelData.key) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Button {
                     Layout.fillWidth: true
-                    text: "Cerrar"
+                    text: sw.tr("Cerrar", "Close")
                     onClicked: sw.hide()
                 }
             }
         }
 
-        StackLayout {
+        // ---------- Contenido ----------
+        Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: nav.currentIndex
+            color: sw.dark ? "#272727" : "#f9f9f9"
+            radius: 8
 
-            // ===== 0 · Relojes =====
-            SettingsPage {
-                heading: "Relojes"
-                intro: "Puedes tener un reloj en cada monitor. Cada uno guarda sus propios ajustes."
+            Flickable {
+                id: flick
+                anchors.fill: parent
+                contentHeight: col.implicitHeight + 60
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                onContentYChanged: sw.updateSpy()
+                onHeightChanged: sw.updateSpy()
+                NumberAnimation { id: scrollAnim; target: flick; property: "contentY"; duration: 260; easing.type: Easing.OutCubic }
 
-                Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    text: sw.clock && sw.app
-                          ? "Estás editando el reloj " + sw.clock.number + " de " + sw.app.count + "."
-                          : ""
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Button {
-                        text: "Añadir reloj para otro monitor"
-                        Layout.fillWidth: true
-                        onClicked: sw.app.addClock(sw.clock)
-                    }
-                    Help { tip: "Crea un reloj nuevo con la misma configuración que este y lo coloca en la misma posición del siguiente monitor. Si solo tienes un monitor, aparece un poco desplazado. Después puedes cambiar sus ajustes sin afectar a este." }
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Button {
-                        text: sw.clock && sw.clock.visible ? "Ocultar este reloj" : "Mostrar este reloj"
-                        Layout.fillWidth: true
-                        onClicked: sw.clock.visible = !sw.clock.visible
-                    }
-                    Button {
-                        text: "Cerrar este reloj"
-                        Layout.fillWidth: true
-                        enabled: sw.app && sw.app.count > 1
-                        onClicked: sw.app.removeClock(sw.clock)
-                    }
-                    Help { tip: "«Cerrar este reloj» lo elimina junto con sus ajustes. Siempre queda al menos un reloj. Para ocultarlos todos usa el icono de la bandeja." }
-                }
-                Label {
-                    Layout.fillWidth: true
-                    Layout.topMargin: 8
-                    wrapMode: Text.WordWrap
-                    opacity: 0.6
-                    font.pixelSize: 11
-                    text: "También puedes añadir o cerrar relojes con clic derecho sobre cualquiera de ellos. Desde el icono de la bandeja se abren los ajustes de cada reloj."
-                }
-            }
-
-            // ===== 1 · Anillos =====
-            SettingsPage {
-                heading: "Anillos"
-                intro: "Qué unidades de tiempo se muestran (de fuera hacia dentro, o de arriba abajo en las barras) y su color."
-
-                Repeater {
-                    model: sw.clock ? sw.clock.ringDefs : []
-                    delegate: RowLayout {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        CheckBox {
-                            text: modelData.name
-                            Layout.preferredWidth: 110
-                            checked: sw.conf[modelData.show]
-                            onToggled: sw.conf[modelData.show] = checked
-                        }
-                        Swatch { key: modelData.col }
-                        Label {
-                            Layout.fillWidth: true
-                            opacity: 0.6
-                            font.pixelSize: 11
-                            elide: Text.ElideRight
-                            text: ({ year: "avance del año", month: "avance del mes", week: "avance de la semana (lun–dom)",
-                                     day: "avance del día o de la jornada", hour: "avance de la hora",
-                                     minute: "avance del minuto (segundero)" })[modelData.key]
-                        }
-                    }
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.topMargin: 8
-                    Label { text: "Paleta"; Layout.preferredWidth: 110 }
-                    ComboBox {
-                        Layout.fillWidth: true
-                        model: Logic.palettes.map(p => p.name)
-                        currentIndex: sw.conf.paletteIndex
-                        onActivated: (i) => {
-                            const c = Logic.palettes[i].c
-                            sw.conf.paletteIndex = i
-                            sw.conf.cYear = c[0]; sw.conf.cMonth = c[1]; sw.conf.cWeek = c[2]
-                            sw.conf.cDay = c[3]; sw.conf.cHour = c[4]; sw.conf.cMinute = c[5]
-                        }
-                    }
-                    Help { tip: "Aplica un juego de colores a todos los anillos. Después puedes cambiar cada color por separado. «OLED tenue» usa colores menos brillantes para cuidar pantallas OLED." }
-                }
-                Help {
-                    Layout.topMargin: 6
-                    tip: "Cada anillo o barra muestra cuánto ha pasado de esa unidad de tiempo. La parte coloreada es lo transcurrido y la pista tenue es lo que queda. El cuadro de color abre el selector. La transparencia de cada uno está en «Transparencias»."
-                }
-            }
-
-            // ===== 2 · Estilo y tamaño =====
-            SettingsPage {
-                heading: "Estilo y tamaño"
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Label { text: "Estilo"; Layout.preferredWidth: 150 }
-                    ComboBox {
-                        Layout.fillWidth: true
-                        model: Logic.styles
-                        currentIndex: sw.conf.style
-                        onActivated: (i) => sw.conf.style = i
-                    }
-                    Help { tip: "Anillos: arcos gruesos con puntas redondeadas.\nSegmentos: cada anillo dividido en bloques.\nFino: líneas delgadas con un punto en la punta.\nNeón: arcos con halo luminoso.\nBloque: anillos anchos sin separación.\nBarras horizontales: una barra recta por unidad, con nombre y porcentaje.\nBarras verticales: columnas rectas una al lado de otra.\nAnalógico: esfera con manecillas y los anillos alrededor." }
-                }
-                SliderRow { label: "Tamaño"; key: "dialSize"; from: 90; to: 1800; stepSize: 2; decimals: 0; suffix: " px"
-                            help: "Diámetro del reloj (o ancho de las barras), de 90 a 1800 px. También puedes cambiarlo con la rueda del ratón sobre el reloj; crece desde el centro." }
-                SliderRow { label: "Grosor"; key: "thickScale"; from: 0.4; to: 1.6; factor: 100; decimals: 0; suffix: " %"
-                            help: "Grosor de los anillos o las barras respecto al valor por defecto del estilo elegido." }
-                SliderRow { label: "Radio del centro"; key: "centerRatio"; from: 0.15; to: 0.85; factor: 100; decimals: 0; suffix: " %"
-                            help: "Tamaño del círculo central donde va la hora, respecto al radio del reloj. Más pequeño deja anillos más anchos; más grande da más espacio al texto o a la esfera analógica. En los estilos de barras ajusta el tamaño del bloque de texto." }
-                SliderRow { label: "Tamaño del texto"; key: "textScale"; from: 0.5; to: 1.8; factor: 100; decimals: 0; suffix: " %"
-                            help: "Escala del texto central respecto al espacio disponible. Si el texto no cabe en una línea, continúa en la de abajo." }
-                SliderRow { label: "Pista de fondo"; key: "trackOpacity"; from: 0; to: 0.5; factor: 100; decimals: 0; suffix: " %"
-                            help: "Intensidad del recorrido tenue que muestra lo que falta de cada anillo o barra. En 0 % solo se ve lo transcurrido." }
-                RowLayout {
-                    Layout.fillWidth: true
-                    CheckBox {
-                        text: "Fondo"
-                        Layout.preferredWidth: 150
-                        checked: sw.conf.showBackdrop
-                        onToggled: sw.conf.showBackdrop = checked
-                    }
-                    Swatch { key: "cBack" }
-                    Item { Layout.fillWidth: true }
-                    Help { tip: "Disco (o rectángulo, en las barras) detrás del reloj para que se lea sobre cualquier fondo. Su transparencia está en «Transparencias»." }
-                }
-                Opt { key: "hoverReveal"; text: "Opacidad completa al pasar el ratón"
-                      help: "Si el reloj está semitransparente, se vuelve totalmente visible mientras el ratón está encima." }
-
-                Section { text: "Reloj analógico" }
-                Opt { key: "secondHand"; text: "Mostrar segundero"
-                      help: "Manecilla de los segundos en el estilo Analógico. Si la quitas y apagas el anillo «Minuto», el reloj se actualiza solo una vez por minuto." }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Label { text: "Manecillas"; Layout.preferredWidth: 150 }
-                    Swatch { key: "cHands" }
-                    Label { text: "Segundero"; Layout.leftMargin: 12 }
-                    Swatch { key: "cSecond" }
-                    Item { Layout.fillWidth: true }
-                    Help { tip: "Colores de las manecillas de hora y minuto, y del segundero. Las marcas de la esfera usan el color del texto." }
-                }
-            }
-
-            // ===== 3 · Transparencias =====
-            SettingsPage {
-                heading: "Transparencias"
-                intro: "La opacidad general afecta a todo el reloj. Las demás se aplican a cada elemento por separado (100 % = opaco)."
-
-                SliderRow { label: "General"; key: "contentOpacity"; from: 0.1; to: 1; factor: 100; decimals: 0; suffix: " %"
-                            help: "Transparencia de todo el reloj. Atajo: Mayús + rueda del ratón sobre el reloj." }
-
-                Section { text: "Anillos y barras" }
-                Repeater {
-                    model: sw.clock ? sw.clock.ringDefs : []
-                    delegate: SliderRow {
-                        required property var modelData
-                        label: modelData.name
-                        key: modelData.op
-                        from: 0; to: 1; factor: 100; decimals: 0; suffix: " %"
-                    }
-                }
-                SliderRow { label: "Pista de fondo"; key: "trackOpacity"; from: 0; to: 0.5; factor: 100; decimals: 0; suffix: " %"
-                            help: "Intensidad del recorrido tenue de todos los anillos." }
-
-                Section { text: "Texto" }
-                SliderRow { label: "Hora"; key: "oTime"; from: 0; to: 1; factor: 100; decimals: 0; suffix: " %" }
-                SliderRow { label: "Fecha"; key: "oDate"; from: 0; to: 1; factor: 100; decimals: 0; suffix: " %" }
-                SliderRow { label: "Tiempo restante"; key: "oSub"; from: 0; to: 1; factor: 100; decimals: 0; suffix: " %" }
-                SliderRow { label: "Etiquetas de barras"; key: "oLabels"; from: 0; to: 1; factor: 100; decimals: 0; suffix: " %"
-                            help: "Nombres y porcentajes que acompañan a las barras horizontales y verticales." }
-
-                Section { text: "Fondo y analógico" }
-                SliderRow { label: "Fondo"; key: "backdropOpacity"; from: 0; to: 1; factor: 100; decimals: 0; suffix: " %"
-                            help: "Opacidad del disco o rectángulo de fondo. Se activa en «Estilo y tamaño»." }
-                SliderRow { label: "Marcas de la esfera"; key: "oTicks"; from: 0; to: 1; factor: 100; decimals: 0; suffix: " %" }
-                SliderRow { label: "Manecillas"; key: "oHands"; from: 0; to: 1; factor: 100; decimals: 0; suffix: " %" }
-            }
-
-            // ===== 4 · Texto y formato =====
-            SettingsPage {
-                heading: "Texto y formato"
-                intro: "El centro del reloj tiene tres líneas. La hora y la fecha usan códigos de formato; si el texto es largo, continúa en la línea de abajo."
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    CheckBox {
-                        text: "Mostrar texto central"
-                        Layout.fillWidth: true
-                        checked: sw.conf.showText
-                        onToggled: sw.conf.showText = checked
-                    }
-                    Label { text: "Color" }
-                    Swatch { key: "cText" }
-                    Help { tip: "Activa o desactiva todo el texto. Al pasar el ratón sobre un anillo, el centro muestra su nombre, el porcentaje y el tiempo restante." }
-                }
-
-                Section { text: "Línea 1 · hora" }
-                Opt { key: "showTime"; text: "Mostrar"; enabled: sw.conf.showText }
-                FormatRow { key: "timeFormat"; presets: Logic.timePresets; enabled: sw.conf.showText && sw.conf.showTime }
-
-                Section { text: "Línea 2 · fecha" }
-                Opt { key: "showDate"; text: "Mostrar"; enabled: sw.conf.showText }
-                FormatRow { key: "dateFormat"; presets: Logic.datePresets; enabled: sw.conf.showText && sw.conf.showDate }
-
-                Section { text: "Línea 3 · tiempo restante" }
-                Opt { key: "showSub"; text: "Mostrar cuánto queda del día o de la jornada"; enabled: sw.conf.showText }
-                Opt { key: "showSeconds"; text: "Incluir segundos en el tiempo restante"
-                      help: "Muestra los segundos en «quedan…». Si no hay segundos en ningún texto ni anillo «Minuto», el reloj solo se actualiza una vez por minuto." }
-
-                Section { text: "Códigos de formato" }
-                Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    textFormat: Text.StyledText
-                    font.pixelSize: 12
-                    lineHeight: 1.25
-                    text:
-"<b>H</b> / <b>HH</b> hora 0–23 (8 / 08) · <b>h</b> / <b>hh</b> hora 1–12<br>" +
-"<b>m</b> / <b>mm</b> minutos · <b>s</b> / <b>ss</b> segundos<br>" +
-"<b>A</b> AM/PM · <b>a</b> am/pm<br>" +
-"<b>d</b> / <b>dd</b> día (8 / 08) · <b>ddd</b> lun · <b>dddd</b> lunes<br>" +
-"<b>M</b> / <b>MM</b> mes (11) · <b>MMM</b> nov · <b>MMMM</b> noviembre<br>" +
-"<b>yy</b> año (26) · <b>yyyy</b> año (2026) · <b>Q</b> trimestre<br>" +
-"<b>w</b> / <b>ww</b> semana del año (ISO) · <b>D</b> / <b>DDD</b> día del año<br>" +
-"<b>'texto'</b> se escribe tal cual · <b>''</b> una comilla · <b>|</b> salto de línea<br>" +
-"Ejemplo: <i>dddd d 'de' MMMM | yyyy</i>"
-                }
-                Opt { key: "smooth"; text: "Movimiento suave del segundero"
-                      help: "El anillo «Minuto» y el segundero analógico avanzan de forma continua en vez de a saltos de un segundo. Redibuja unas 30 veces por segundo, así que usa algo más de GPU." }
-            }
-
-            // ===== 5 · Jornada =====
-            SettingsPage {
-                heading: "Día o jornada"
-
-                Opt { key: "workMode"; text: "El anillo «Día» mide solo mi jornada"
-                      help: "En lugar de las 24 horas, el anillo «Día» va de la hora de inicio a la de fin. Antes de empezar indica cuánto falta; después muestra «jornada terminada»." }
-                RowLayout {
-                    enabled: sw.conf.workMode
-                    Label { text: "Desde"; Layout.preferredWidth: 60 }
-                    TimeSpin { key: "workStart" }
-                    Label { text: "hasta"; Layout.leftMargin: 8 }
-                    TimeSpin { key: "workEnd" }
-                    Help { tip: "Usa las flechas para cambiar en pasos de 30 minutos, o escribe cualquier hora: 7:45, 7.45, 7h45 o 0745. Pulsa Enter o cambia de campo para aplicarla. Formato de 24 h; 24:00 es medianoche." }
-                }
-                Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.6
-                    font.pixelSize: 11
-                    color: sw.conf.workMode && sw.conf.workEnd <= sw.conf.workStart ? "#ff8a8a" : palette.windowText
-                    text: sw.conf.workMode && sw.conf.workEnd <= sw.conf.workStart
-                          ? "La hora de fin debe ser posterior a la de inicio; mientras tanto el anillo mide el día completo."
-                          : "Escribe la hora exacta o usa las flechas (±30 min)."
-                }
-            }
-
-            // ===== 6 · Posición =====
-            SettingsPage {
-                heading: "Posición"
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 14
-                    GridLayout {
-                        columns: 3
-                        rowSpacing: 4; columnSpacing: 4
-                        PosButton { text: "↖"; h: 0;   v: 0;   ToolTip.text: "Arriba a la izquierda"; ToolTip.visible: hovered; ToolTip.delay: 400 }
-                        PosButton { text: "↑"; h: 0.5; v: 0;   ToolTip.text: "Arriba al centro";      ToolTip.visible: hovered; ToolTip.delay: 400 }
-                        PosButton { text: "↗"; h: 1;   v: 0;   ToolTip.text: "Arriba a la derecha";   ToolTip.visible: hovered; ToolTip.delay: 400 }
-                        PosButton { text: "←"; h: 0;   v: 0.5; ToolTip.text: "Centro a la izquierda"; ToolTip.visible: hovered; ToolTip.delay: 400 }
-                        PosButton { text: "◉"; h: 0.5; v: 0.5; ToolTip.text: "Centrar en la pantalla"; ToolTip.visible: hovered; ToolTip.delay: 400 }
-                        PosButton { text: "→"; h: 1;   v: 0.5; ToolTip.text: "Centro a la derecha";   ToolTip.visible: hovered; ToolTip.delay: 400 }
-                        PosButton { text: "↙"; h: 0;   v: 1;   ToolTip.text: "Abajo a la izquierda";  ToolTip.visible: hovered; ToolTip.delay: 400 }
-                        PosButton { text: "↓"; h: 0.5; v: 1;   ToolTip.text: "Abajo al centro";       ToolTip.visible: hovered; ToolTip.delay: 400 }
-                        PosButton { text: "↘"; h: 1;   v: 1;   ToolTip.text: "Abajo a la derecha";    ToolTip.visible: hovered; ToolTip.delay: 400 }
-                    }
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        Button { text: "Centrar en la pantalla"; Layout.fillWidth: true; onClicked: sw.clock.centerOnScreen() }
-                        Button {
-                            text: "Pasar al siguiente monitor"
-                            Layout.fillWidth: true
-                            enabled: plat.screenCount() > 1
-                            onClicked: sw.clock.moveToNextScreen()
-                        }
-                        Label {
-                            text: "Los botones usan el monitor donde está el reloj y respetan la barra de tareas."
-                            wrapMode: Text.WordWrap; Layout.fillWidth: true; opacity: 0.6; font.pixelSize: 11
-                        }
-                    }
-                    Help { Layout.alignment: Qt.AlignTop; tip: "La cuadrícula lleva el reloj a una esquina, a un borde o al centro del monitor actual. «Pasar al siguiente monitor» lo mueve a la misma posición relativa en la otra pantalla. Estos botones funcionan aunque la posición esté fijada." }
-                }
-                SliderRow { label: "Distancia al borde"; key: "edgeGap"; from: 0; to: 300; stepSize: 1; decimals: 0; suffix: " px"
-                            help: "Separación que dejan los botones de posición entre el reloj y el borde de la pantalla." }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Label { text: "Mover poco a poco"; Layout.preferredWidth: 150 }
-                    Button { text: "◀"; implicitWidth: 38; onClicked: sw.clock.nudge(-sw.conf.nudgeStep, 0) }
-                    Button { text: "▲"; implicitWidth: 38; onClicked: sw.clock.nudge(0, -sw.conf.nudgeStep) }
-                    Button { text: "▼"; implicitWidth: 38; onClicked: sw.clock.nudge(0, sw.conf.nudgeStep) }
-                    Button { text: "▶"; implicitWidth: 38; onClicked: sw.clock.nudge(sw.conf.nudgeStep, 0) }
-                    SpinBox {
-                        from: 1; to: 500; editable: true
-                        value: sw.conf.nudgeStep
-                        onValueModified: sw.conf.nudgeStep = value
-                        Layout.preferredWidth: 100
-                    }
-                    Label { text: "px" }
-                    Item { Layout.fillWidth: true }
-                    Help { tip: "Desplaza el reloj en pasos exactos. El número indica cuántos píxeles se mueve en cada clic." }
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    Label { text: "Coordenadas"; Layout.preferredWidth: 150 }
-                    Label { text: "X" }
-                    SpinBox {
-                        from: -20000; to: 20000; editable: true
-                        Layout.preferredWidth: 110
-                        value: sw.clock ? Math.round(sw.clock.x) : 0
-                        onValueModified: { sw.clock.x = value; value = Qt.binding(() => Math.round(sw.clock.x)) }
-                    }
-                    Label { text: "Y" }
-                    SpinBox {
-                        from: -20000; to: 20000; editable: true
-                        Layout.preferredWidth: 110
-                        value: sw.clock ? Math.round(sw.clock.y) : 0
-                        onValueModified: { sw.clock.y = value; value = Qt.binding(() => Math.round(sw.clock.y)) }
-                    }
-                    Item { Layout.fillWidth: true }
-                    Help { tip: "Posición exacta de la esquina superior izquierda del reloj, en píxeles del escritorio. Con varios monitores, los valores pueden ser negativos." }
-                }
-            }
-
-            // ===== 7 · Ventana =====
-            SettingsPage {
-                heading: "Ventana"
-
-                Opt { key: "onTop"; text: "Siempre visible"
-                      help: "Mantiene el reloj por encima de las demás ventanas. Windows no permite superponerlo a juegos en pantalla completa exclusiva." }
-                Opt { key: "locked"; text: "Fijar posición y tamaño"
-                      help: "Evita moverlo o cambiar su tamaño por accidente con el ratón. Los botones de posición de esta ventana siguen funcionando." }
-                Opt { key: "clickThrough"; text: "Dejar pasar los clics"
-                      help: "El reloj ignora el ratón: los clics llegan a la ventana de abajo. Para desactivarlo, usa el icono de Arco en la bandeja del sistema (junto al reloj de Windows)." }
-                RowLayout {
-                    visible: plat.autostartSupported()
-                    Layout.fillWidth: true
-                    CheckBox {
-                        text: "Iniciar con Windows"
-                        Layout.fillWidth: true
-                        checked: plat.autostartEnabled()
-                        onToggled: plat.setAutostart(checked)
-                    }
-                    Help { tip: "Abre Arco automáticamente al iniciar sesión en Windows, con todos tus relojes. Es un ajuste común a todos los relojes." }
-                }
-            }
-
-            // ===== 8 · Sincronización =====
-            SettingsPage {
-                heading: "Sincronización"
-                intro: "Usa la misma configuración en varios equipos. La posición de cada reloj no se sincroniza, porque depende de los monitores de cada equipo."
-
-                RadioButton {
-                    text: "Desactivada"
-                    checked: sync.mode === "off"
-                    onClicked: { sync.setMode("off"); checked = Qt.binding(() => sync.mode === "off") }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    RadioButton {
-                        text: "Cuenta de Google"
-                        Layout.fillWidth: true
-                        enabled: sync.googleAvailable
-                        autoExclusive: false
-                        checked: sync.mode === "google"
-                        onClicked: { sync.setMode("google"); checked = Qt.binding(() => sync.mode === "google") }
-                    }
-                    Help { tip: "Guarda la configuración en una carpeta oculta de tu Google Drive que solo Arco puede ver. Arco no tiene acceso a tus demás archivos. Inicia sesión con la misma cuenta en cada equipo." }
-                }
                 ColumnLayout {
-                    visible: sync.mode === "google"
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 28
+                    id: col
+                    x: 28
+                    y: 16
+                    width: flick.width - 56
+                    spacing: 6
+
                     Label {
-                        Layout.fillWidth: true
-                        wrapMode: Text.WordWrap
-                        text: sync.account !== "" ? "Conectado como " + sync.account : "No has iniciado sesión."
+                        text: sw.tr("Ajustes", "Settings")
+                        font.pixelSize: 28
+                        font.weight: Font.DemiBold
+                        color: sw.cText
                     }
-                    RowLayout {
-                        Button {
-                            visible: sync.account === "" && !sync.loggingIn
-                            text: "Iniciar sesión con Google"
-                            onClicked: sync.login()
+
+                    // ================= Apariencia =================
+                    CatHeader { key: "appearance"; text: sw.tr("Apariencia", "Appearance") }
+
+                    Expander {
+                        key: "style"
+                        icon: ""
+                        title: sw.tr("Estilo y tamaño", "Style and size")
+                        desc: Logic.styleNames(ui.lang)[sw.conf.style] + (sw.conf.perStyle
+                              ? sw.tr(" · cada estilo guarda su aspecto", " · each style keeps its own look") : "")
+                        SRow {
+                            title: sw.tr("Estilo", "Style")
+                            ComboBox {
+                                Layout.preferredWidth: 220
+                                model: Logic.styleNames(ui.lang)
+                                currentIndex: sw.conf.style
+                                onActivated: (i) => sw.conf.style = i
+                            }
                         }
-                        Button {
-                            visible: sync.loggingIn
-                            text: "Cancelar inicio de sesión"
-                            onClicked: sync.cancelLogin()
+                        SRow {
+                            title: sw.tr("Ajustes propios para cada estilo", "Separate settings for each style")
+                            desc: sw.tr("Colores, transparencias, tamaño y grosor se recuerdan por separado en cada estilo. Al cambiar de estilo recuperas su aspecto.",
+                                        "Colors, opacity, size and thickness are remembered separately for each style. Switching styles brings back its look.")
+                            Toggle { key: "perStyle" }
                         }
-                        Button {
-                            visible: sync.account !== ""
-                            text: "Cerrar sesión"
-                            onClicked: sync.logout()
+                        SRow {
+                            title: sw.tr("Tamaño", "Size")
+                            desc: sw.tr("También con la rueda del ratón sobre el reloj.", "You can also use the mouse wheel over the clock.")
+                            SliderCtl { key: "dialSize"; lo: 90; hi: 1800; step: 2; factor: 1; suffix: " px" }
                         }
-                    }
-                }
-                Label {
-                    visible: !sync.googleAvailable
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 28
-                    wrapMode: Text.WordWrap
-                    opacity: 0.6
-                    font.pixelSize: 11
-                    text: "Esta versión no incluye acceso a Google. Puedes usar una carpeta de Google Drive para escritorio con la opción de abajo."
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    RadioButton {
-                        text: "Carpeta sincronizada"
-                        Layout.fillWidth: true
-                        autoExclusive: false
-                        checked: sync.mode === "folder"
-                        onClicked: {
-                            if (sync.folder !== "") sync.setMode("folder"); else folderDlg.open()
-                            checked = Qt.binding(() => sync.mode === "folder")
+                        SRow {
+                            title: sw.tr("Grosor", "Thickness")
+                            SliderCtl { key: "thickScale"; lo: 0.4; hi: 1.6 }
+                        }
+                        SRow {
+                            title: sw.tr("Radio del centro", "Center radius")
+                            desc: sw.tr("Espacio para la hora o la esfera respecto a los anillos. En las barras, tamaño del bloque de texto.",
+                                        "Room for the time or the dial relative to the rings. For bars, the size of the text block.")
+                            SliderCtl { key: "centerRatio"; lo: 0.15; hi: 0.85 }
+                        }
+                        SRow {
+                            title: sw.tr("Pista de fondo", "Track")
+                            desc: sw.tr("Intensidad del recorrido que falta en cada anillo.", "How visible the remaining part of each ring is.")
+                            SliderCtl { key: "trackOpacity"; lo: 0; hi: 0.5 }
                         }
                     }
-                    Help { tip: "Guarda la configuración en una carpeta que otro programa mantiene sincronizada: Google Drive para escritorio, OneDrive, Dropbox… Elige la misma carpeta en cada equipo. No necesita iniciar sesión en Arco." }
-                }
-                RowLayout {
-                    visible: sync.mode === "folder"
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 28
-                    TextField {
-                        Layout.fillWidth: true
-                        readOnly: true
-                        text: sync.folder
-                        placeholderText: "Ninguna carpeta elegida"
+
+                    Expander {
+                        key: "opacity"
+                        icon: ""
+                        title: sw.tr("Transparencia general", "Overall opacity")
+                        desc: sw.tr("Funciona como un mezclador de volumen: sigue al elemento más opaco y, al moverla, todos cambian en proporción.",
+                                    "Works like a volume mixer: it follows the most opaque element and scales all of them together.")
+                        SRow {
+                            title: sw.tr("General", "Overall")
+                            desc: sw.tr("Atajo: Mayús + rueda del ratón sobre el reloj.", "Shortcut: Shift + mouse wheel over the clock.")
+                            SliderCtl {
+                                getter: () => sw.clock ? sw.clock.master : 1
+                                setter: (v) => sw.clock.setMaster(v)
+                                lo: 0.05; hi: 1
+                            }
+                        }
+                        SRow {
+                            title: sw.tr("Opacidad completa al pasar el ratón", "Full opacity on hover")
+                            desc: sw.tr("Mientras el ratón está encima, el reloj se ve como si la transparencia general estuviera al 100 %.",
+                                        "While the pointer is over the clock it looks as if overall opacity were 100%.")
+                            Toggle { key: "hoverReveal" }
+                        }
                     }
-                    Button { text: "Elegir…"; onClicked: folderDlg.open() }
-                }
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.topMargin: 8
-                    enabled: sync.mode !== "off"
-                    CheckBox {
-                        Layout.fillWidth: true
-                        text: "Igualar también el número de relojes"
-                        checked: sync.syncCount
-                        onToggled: sync.setSyncCount(checked)
+                    Expander {
+                        key: "rings"
+                        icon: ""
+                        title: sw.tr("Anillos", "Rings")
+                        desc: sw.tr("Qué se muestra, con su color y su transparencia.", "What is shown, with its color and opacity.")
+                        SRow {
+                            line: true
+                            title: sw.tr("Paleta", "Palette")
+                            desc: sw.tr("Aplica un juego de colores a todos los anillos.", "Applies a color set to every ring.")
+                            ComboBox {
+                                Layout.preferredWidth: 220
+                                model: Logic.paletteNames(ui.lang)
+                                currentIndex: sw.conf.paletteIndex
+                                onActivated: (i) => {
+                                    const c = Logic.palettes[i].c
+                                    sw.conf.paletteIndex = i
+                                    sw.conf.cYear = c[0]; sw.conf.cMonth = c[1]; sw.conf.cWeek = c[2]
+                                    sw.conf.cDay = c[3]; sw.conf.cHour = c[4]; sw.conf.cMinute = c[5]
+                                }
+                            }
+                        }
+                        Repeater {
+                            model: sw.clock ? sw.clock.ringDefs : []
+                            delegate: SRow {
+                                required property var modelData
+                                title: sw.clock.ringName(modelData)
+                                desc: ({
+                                    year:   sw.tr("Avance del año", "Progress through the year"),
+                                    month:  sw.tr("Avance del mes", "Progress through the month"),
+                                    week:   sw.tr("Avance de la semana (lun–dom)", "Progress through the week (Mon–Sun)"),
+                                    day:    sw.tr("Avance del día o de la jornada", "Progress through the day or workday"),
+                                    hour:   sw.tr("Avance de la hora", "Progress through the hour"),
+                                    minute: sw.tr("Avance del minuto (segundero)", "Progress through the minute (seconds)")
+                                })[modelData.key]
+                                Swatch { key: modelData.col; opacity: sw.conf[modelData.show] ? 1 : 0.4 }
+                                SliderCtl { key: modelData.op; sliderWidth: 150; enabled: sw.conf[modelData.show] }
+                                Toggle { key: modelData.show; label: false }
+                            }
+                        }
+                        SRow {
+                            visible: !!sw.clock && !sw.clock.radial
+                            title: sw.tr("Etiquetas de las barras", "Bar labels")
+                            desc: sw.tr("Nombres y porcentajes junto a cada barra.", "Names and percentages next to each bar.")
+                            SliderCtl { key: "oLabels"; sliderWidth: 150 }
+                        }
+                        SRow {
+                            title: sw.tr("Movimiento suave", "Smooth motion")
+                            desc: sw.tr("El anillo «Minuto» y el segundero avanzan de forma continua. Usa algo más de GPU.",
+                                        "The Minute ring and the second hand move continuously. Uses a little more GPU.")
+                            Toggle { key: "smooth" }
+                        }
                     }
-                    Help { tip: "Desactivado: cada equipo conserva sus relojes y recibe los ajustes en orden (el reloj 1 con el reloj 1, etc.). Activado: si otro equipo tiene más relojes, aquí se crean los que falten, y si tiene menos, se cierran los que sobran." }
-                }
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.topMargin: 6
-                    enabled: sync.ready && !sync.busy
-                    Button { text: "Sincronizar ahora"; onClicked: sync.syncNow() }
-                    Button { text: "Subir este equipo"; onClicked: sync.pushNow() }
-                    Button { text: "Descargar"; onClicked: sync.pullNow() }
-                    Item { Layout.fillWidth: true }
-                    Help { tip: "La sincronización es automática: los cambios se suben unos segundos después y se comprueba la nube cada pocos minutos. Si dos equipos cambian a la vez, gana el cambio más reciente. «Subir este equipo» reemplaza lo guardado por la configuración de aquí; «Descargar» hace lo contrario." }
-                }
-                Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.7
-                    font.pixelSize: 11
-                    text: sync.status
-                }
-            }
+                    Expander {
+                        key: "backdrop"
+                        icon: ""
+                        title: sw.tr("Fondo", "Background")
+                        desc: sw.tr("Disco o rectángulo detrás del reloj para leerlo sobre cualquier fondo.",
+                                    "A disc or panel behind the clock so it reads well on any wallpaper.")
+                        SRow {
+                            title: sw.tr("Mostrar fondo", "Show background")
+                            Toggle { key: "showBackdrop" }
+                        }
+                        SRow {
+                            enabled: sw.conf.showBackdrop
+                            title: sw.tr("Color y transparencia", "Color and opacity")
+                            Swatch { key: "cBack" }
+                            SliderCtl { key: "backdropOpacity"; sliderWidth: 150 }
+                        }
+                    }
 
-            // ===== 9 · Burn-in =====
-            SettingsPage {
-                heading: "Protección contra burn-in"
+                    Expander {
+                        key: "analog"
+                        visible: !!sw.clock && sw.clock.analog
+                        icon: ""
+                        title: sw.tr("Reloj analógico", "Analog clock")
+                        desc: sw.tr("Manecillas y marcas de la esfera.", "Hands and dial marks.")
+                        SRow {
+                            title: sw.tr("Segundero", "Second hand")
+                            Toggle { key: "secondHand" }
+                        }
+                        SRow {
+                            title: sw.tr("Manecillas de hora y minuto", "Hour and minute hands")
+                            Swatch { key: "cHands" }
+                            SliderCtl { key: "oHands"; sliderWidth: 150 }
+                        }
+                        SRow {
+                            enabled: sw.conf.secondHand
+                            title: sw.tr("Color del segundero", "Second hand color")
+                            Swatch { key: "cSecond" }
+                        }
+                        SRow {
+                            title: sw.tr("Marcas de la esfera", "Dial marks")
+                            desc: sw.tr("Usan el color del texto.", "They use the text color.")
+                            SliderCtl { key: "oTicks"; sliderWidth: 150 }
+                        }
+                    }
 
-                Opt { key: "antiBurn"; text: "Desplazar el reloj periódicamente"
-                      help: "Mueve el reloj unos píxeles cada cierto tiempo (pixel shift), con una transición suave y sin repetir posición en ciclos cortos. Así ningún píxel queda encendido siempre con el mismo color." }
-                SliderRow { label: "Radio"; key: "burnRadius"; from: 2; to: 40; stepSize: 1; decimals: 0; suffix: " px"; enabled: sw.conf.antiBurn
-                            help: "Distancia máxima que se aleja el reloj de su posición. 6–12 px suele bastar." }
-                SliderRow { label: "Cada"; key: "burnInterval"; from: 30; to: 900; stepSize: 10; decimals: 0; suffix: " s"; enabled: sw.conf.antiBurn
-                            help: "Cada cuántos segundos se desplaza." }
-                Opt { key: "burnDimTracks"; text: "Atenuar a la mitad las pistas fijas"
-                      help: "Las pistas de fondo son la parte que menos cambia. Atenuarlas reduce el riesgo de marcas en pantallas OLED." }
-            }
+                    // ================= Texto =================
+                    CatHeader { key: "text"; text: sw.tr("Texto", "Text") }
 
-            // ===== 10 · Guía rápida =====
-            SettingsPage {
-                heading: "Guía rápida"
+                    Expander {
+                        key: "textgeneral"
+                        icon: ""
+                        title: sw.tr("Texto central", "Center text")
+                        desc: sw.tr("Tres líneas: hora, fecha y tiempo restante. Si una no cabe, continúa debajo.",
+                                    "Three lines: time, date and time remaining. Long lines wrap below.")
+                        SRow {
+                            title: sw.tr("Mostrar texto", "Show text")
+                            desc: sw.tr("Al pasar el ratón por un anillo, el centro muestra su nombre, porcentaje y lo que falta.",
+                                        "Hovering a ring shows its name, percentage and time left in the center.")
+                            Toggle { key: "showText" }
+                        }
+                        SRow {
+                            enabled: sw.conf.showText
+                            title: sw.tr("Color", "Color")
+                            Swatch { key: "cText" }
+                        }
+                        SRow {
+                            enabled: sw.conf.showText
+                            title: sw.tr("Tamaño del texto", "Text size")
+                            SliderCtl { key: "textScale"; lo: 0.5; hi: 1.8 }
+                        }
+                    }
 
-                Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    textFormat: Text.StyledText
-                    lineHeight: 1.2
-                    text:
-"<b>Con el ratón sobre el reloj</b><br>" +
-"• Arrastrar: mover.<br>" +
-"• Rueda: cambiar tamaño (90–1800 px).<br>" +
-"• Mayús + rueda: cambiar opacidad.<br>" +
-"• Doble clic: abrir los ajustes de ese reloj.<br>" +
-"• Clic derecho: menú del reloj.<br>" +
-"• Pasar por un anillo: el centro muestra su nombre, % y tiempo restante.<br><br>" +
-"<b>Varios monitores</b><br>" +
-"Clic derecho → <b>Nuevo reloj para otro monitor</b> crea una copia con la misma configuración en la pantalla siguiente. Cada reloj tiene sus propios ajustes y se puede cerrar por separado.<br><br>" +
-"<b>Menú del reloj (clic derecho)</b><br>" +
-"• <b>Ocultar este reloj</b>, <b>Ajustes…</b> y <b>Ayuda</b>.<br>" +
-"• <b>Nuevo reloj</b> / <b>Cerrar este reloj</b>.<br>" +
-"• <b>Posición</b>: centrar, esquinas, bordes o pasar al siguiente monitor.<br>" +
-"• <b>Siempre visible</b>, <b>Fijar posición</b>, <b>Dejar pasar los clics</b> y <b>Anti burn-in</b>.<br>" +
-"• <b>Estilo</b>: Anillos, Segmentos, Fino, Neón, Bloque, Barras horizontales, Barras verticales o Analógico.<br><br>" +
-"<b>Sincronización</b><br>" +
-"En «Sincronización» puedes compartir la configuración entre equipos con tu cuenta de Google o con una carpeta sincronizada. La posición de los relojes no se comparte.<br><br>" +
-"<b>Icono de la bandeja</b><br>" +
-"Un clic muestra u oculta todos los relojes. Su menú permite añadir relojes, abrir los ajustes de cada uno, volver a recibir clics y salir. Está junto al reloj de Windows; si no aparece, búscalo en la flecha «^» de iconos ocultos.<br><br>" +
-"<b>Qué mide cada anillo</b><br>" +
-"Año, Mes, Semana, Día (o jornada), Hora y Minuto. La parte coloreada es lo transcurrido y la pista tenue lo que queda. El anillo Minuto es el segundero.<br><br>" +
-"<b>Consumo</b><br>" +
-"El dibujo lo hace la GPU. Cada reloj se actualiza una vez por segundo, o una vez por minuto si no muestra segundos. Oculto no hace ningún trabajo."
+                    Expander {
+                        key: "time"
+                        icon: ""
+                        title: sw.tr("Hora", "Time")
+                        desc: sw.conf.showTime ? Logic.formatDate(sw.clock ? sw.clock.now : new Date(), sw.conf.timeFormat, ui.lang)
+                                               : sw.tr("Oculta", "Hidden")
+                        SRow {
+                            title: sw.tr("Mostrar hora", "Show time")
+                            Toggle { key: "showTime" }
+                        }
+                        FormatRow { key: "timeFormat"; presets: Logic.timePresets; enabled: sw.conf.showTime }
+                        SRow {
+                            enabled: sw.conf.showTime
+                            title: sw.tr("Transparencia", "Opacity")
+                            SliderCtl { key: "oTime"; sliderWidth: 150 }
+                        }
+                    }
+
+                    Expander {
+                        key: "date"
+                        icon: ""
+                        title: sw.tr("Fecha", "Date")
+                        desc: sw.conf.showDate ? Logic.formatDate(sw.clock ? sw.clock.now : new Date(), sw.conf.dateFormat, ui.lang).replace(/\n/g, " ")
+                                               : sw.tr("Oculta", "Hidden")
+                        SRow {
+                            title: sw.tr("Mostrar fecha", "Show date")
+                            Toggle { key: "showDate" }
+                        }
+                        FormatRow { key: "dateFormat"; presets: Logic.datePresetsFor(ui.lang); enabled: sw.conf.showDate }
+                        SRow {
+                            enabled: sw.conf.showDate
+                            title: sw.tr("Transparencia", "Opacity")
+                            SliderCtl { key: "oDate"; sliderWidth: 150 }
+                        }
+                    }
+
+                    Expander {
+                        key: "remaining"
+                        icon: ""
+                        title: sw.tr("Tiempo restante", "Time remaining")
+                        desc: sw.conf.showSub && sw.clock ? Logic.daySubtitle(sw.clock.t.day, sw.conf.showSeconds, ui.lang)
+                                                          : sw.tr("Oculto", "Hidden")
+                        SRow {
+                            title: sw.tr("Mostrar cuánto queda del día o de la jornada", "Show how much of the day or workday is left")
+                            Toggle { key: "showSub" }
+                        }
+                        SRow {
+                            enabled: sw.conf.showSub
+                            title: sw.tr("Incluir segundos", "Include seconds")
+                            desc: sw.tr("Sin segundos en ningún texto ni anillo «Minuto», el reloj se actualiza una vez por minuto.",
+                                        "With no seconds anywhere and no Minute ring, the clock updates once a minute.")
+                            Toggle { key: "showSeconds" }
+                        }
+                        SRow {
+                            enabled: sw.conf.showSub
+                            title: sw.tr("Transparencia", "Opacity")
+                            SliderCtl { key: "oSub"; sliderWidth: 150 }
+                        }
+                    }
+
+                    Expander {
+                        key: "codes"
+                        icon: ""
+                        title: sw.tr("Códigos de formato", "Format codes")
+                        desc: sw.tr("Letras que puedes usar en los formatos de hora y fecha.", "Letters you can use in time and date formats.")
+                        WideRow {
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                textFormat: Text.StyledText
+                                color: sw.cText
+                                lineHeight: 1.3
+                                text: ui.lang === "en"
+? "<b>H</b> / <b>HH</b> hour 0–23 (8 / 08) · <b>h</b> / <b>hh</b> hour 1–12<br>" +
+  "<b>m</b> / <b>mm</b> minutes · <b>s</b> / <b>ss</b> seconds · <b>A</b> AM/PM · <b>a</b> am/pm<br>" +
+  "<b>d</b> / <b>dd</b> day (8 / 08) · <b>ddd</b> Mon · <b>dddd</b> Monday<br>" +
+  "<b>M</b> / <b>MM</b> month (11) · <b>MMM</b> Nov · <b>MMMM</b> November<br>" +
+  "<b>yy</b> year (26) · <b>yyyy</b> year (2026) · <b>Q</b> quarter<br>" +
+  "<b>w</b> / <b>ww</b> ISO week · <b>D</b> / <b>DDD</b> day of the year<br>" +
+  "<b>'text'</b> literal text · <b>''</b> a quote · <b>|</b> line break<br>" +
+  "Example: <i>dddd, MMMM d | yyyy</i>"
+: "<b>H</b> / <b>HH</b> hora 0–23 (8 / 08) · <b>h</b> / <b>hh</b> hora 1–12<br>" +
+  "<b>m</b> / <b>mm</b> minutos · <b>s</b> / <b>ss</b> segundos · <b>A</b> AM/PM · <b>a</b> am/pm<br>" +
+  "<b>d</b> / <b>dd</b> día (8 / 08) · <b>ddd</b> lun · <b>dddd</b> lunes<br>" +
+  "<b>M</b> / <b>MM</b> mes (11) · <b>MMM</b> nov · <b>MMMM</b> noviembre<br>" +
+  "<b>yy</b> año (26) · <b>yyyy</b> año (2026) · <b>Q</b> trimestre<br>" +
+  "<b>w</b> / <b>ww</b> semana ISO · <b>D</b> / <b>DDD</b> día del año<br>" +
+  "<b>'texto'</b> se escribe tal cual · <b>''</b> una comilla · <b>|</b> salto de línea<br>" +
+  "Ejemplo: <i>dddd d 'de' MMMM | yyyy</i>"
+                            }
+                        }
+                    }
+
+                    // ================= Relojes y posición =================
+                    CatHeader { key: "clocks"; text: sw.tr("Relojes y posición", "Clocks and position") }
+
+                    Expander {
+                        key: "clocklist"
+                        icon: ""
+                        title: sw.tr("Relojes", "Clocks")
+                        desc: sw.clock && sw.app ? sw.tr("Estás editando el reloj ", "You are editing clock ") + sw.clock.number
+                                                   + sw.tr(" de ", " of ") + sw.app.count : ""
+                        SRow {
+                            title: sw.tr("Añadir reloj para otro monitor", "Add a clock for another monitor")
+                            desc: sw.tr("Copia la configuración de este reloj y lo coloca en el siguiente monitor. Cada reloj guarda sus propios ajustes.",
+                                        "Copies this clock's settings and places it on the next monitor. Each clock keeps its own settings.")
+                            Button { text: sw.tr("Añadir", "Add"); onClicked: sw.app.addClock(sw.clock) }
+                        }
+                        SRow {
+                            title: sw.tr("Mostrar u ocultar este reloj", "Show or hide this clock")
+                            Button {
+                                text: sw.clock && sw.clock.visible ? sw.tr("Ocultar", "Hide") : sw.tr("Mostrar", "Show")
+                                onClicked: sw.clock.visible = !sw.clock.visible
+                            }
+                        }
+                        SRow {
+                            title: sw.tr("Cerrar este reloj", "Close this clock")
+                            desc: sw.tr("Lo elimina junto con sus ajustes. Siempre queda al menos uno.", "Removes it and its settings. At least one clock always remains.")
+                            Button {
+                                text: sw.tr("Cerrar", "Close")
+                                enabled: !!sw.app && sw.app.count > 1
+                                onClicked: sw.app.removeClock(sw.clock)
+                            }
+                        }
+                    }
+
+                    Expander {
+                        key: "position"
+                        icon: ""
+                        title: sw.tr("Posición", "Position")
+                        desc: sw.tr("Esquinas, bordes, centro u otro monitor. Funciona aunque la posición esté fijada.",
+                                    "Corners, edges, center or another monitor. Works even when the position is locked.")
+                        WideRow {
+                            RowLayout {
+                                spacing: 16
+                                GridLayout {
+                                    columns: 3
+                                    rowSpacing: 4; columnSpacing: 4
+                                    PosButton { text: "↖"; h: 0;   v: 0 }
+                                    PosButton { text: "↑"; h: 0.5; v: 0 }
+                                    PosButton { text: "↗"; h: 1;   v: 0 }
+                                    PosButton { text: "←"; h: 0;   v: 0.5 }
+                                    PosButton { text: "◉"; h: 0.5; v: 0.5 }
+                                    PosButton { text: "→"; h: 1;   v: 0.5 }
+                                    PosButton { text: "↙"; h: 0;   v: 1 }
+                                    PosButton { text: "↓"; h: 0.5; v: 1 }
+                                    PosButton { text: "↘"; h: 1;   v: 1 }
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Button { text: sw.tr("Centrar en la pantalla", "Center on screen"); Layout.fillWidth: true; onClicked: sw.clock.centerOnScreen() }
+                                    Button {
+                                        text: sw.tr("Pasar al siguiente monitor", "Move to next monitor")
+                                        Layout.fillWidth: true
+                                        enabled: plat.screenCount() > 1
+                                        onClicked: sw.clock.moveToNextScreen()
+                                    }
+                                    Label {
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                        color: sw.cText2
+                                        font.pixelSize: 12
+                                        text: sw.tr("Usa el monitor donde está el reloj y respeta la barra de tareas.",
+                                                    "Uses the monitor the clock is on and respects the taskbar.")
+                                    }
+                                }
+                            }
+                        }
+                        SRow {
+                            title: sw.tr("Distancia al borde", "Edge margin")
+                            SliderCtl { key: "edgeGap"; lo: 0; hi: 300; step: 1; factor: 1; suffix: " px" }
+                        }
+                        SRow {
+                            title: sw.tr("Mover poco a poco", "Nudge")
+                            desc: sw.tr("Píxeles por clic.", "Pixels per click.")
+                            Button { text: "◀"; implicitWidth: 38; onClicked: sw.clock.nudge(-sw.conf.nudgeStep, 0) }
+                            Button { text: "▲"; implicitWidth: 38; onClicked: sw.clock.nudge(0, -sw.conf.nudgeStep) }
+                            Button { text: "▼"; implicitWidth: 38; onClicked: sw.clock.nudge(0, sw.conf.nudgeStep) }
+                            Button { text: "▶"; implicitWidth: 38; onClicked: sw.clock.nudge(sw.conf.nudgeStep, 0) }
+                            SpinBox {
+                                from: 1; to: 500; editable: true
+                                value: sw.conf.nudgeStep
+                                onValueModified: sw.conf.nudgeStep = value
+                                Layout.preferredWidth: 100
+                            }
+                        }
+                        SRow {
+                            title: sw.tr("Coordenadas", "Coordinates")
+                            desc: sw.tr("Esquina superior izquierda, en píxeles del escritorio.", "Top-left corner, in desktop pixels.")
+                            Label { text: "X"; color: sw.cText2 }
+                            SpinBox {
+                                from: -20000; to: 20000; editable: true
+                                Layout.preferredWidth: 110
+                                value: sw.clock ? Math.round(sw.clock.x) : 0
+                                onValueModified: { sw.clock.x = value; value = Qt.binding(() => Math.round(sw.clock.x)) }
+                            }
+                            Label { text: "Y"; color: sw.cText2 }
+                            SpinBox {
+                                from: -20000; to: 20000; editable: true
+                                Layout.preferredWidth: 110
+                                value: sw.clock ? Math.round(sw.clock.y) : 0
+                                onValueModified: { sw.clock.y = value; value = Qt.binding(() => Math.round(sw.clock.y)) }
+                            }
+                        }
+                    }
+
+                    // ================= Comportamiento =================
+                    CatHeader { key: "behavior"; text: sw.tr("Comportamiento", "Behavior") }
+
+                    Expander {
+                        key: "window"
+                        icon: ""
+                        title: sw.tr("Ventana", "Window")
+                        desc: sw.tr("Capa, bloqueo, clics e inicio con Windows.", "Layering, locking, clicks and startup.")
+                        SRow {
+                            title: sw.tr("Siempre visible", "Always on top")
+                            desc: sw.tr("Por encima de las demás ventanas (no sobre juegos en pantalla completa exclusiva).",
+                                        "Above other windows (not over exclusive full-screen games).")
+                            Toggle { key: "onTop" }
+                        }
+                        SRow {
+                            title: sw.tr("Fijar posición y tamaño", "Lock position and size")
+                            desc: sw.tr("Evita moverlo o redimensionarlo por accidente con el ratón.", "Prevents moving or resizing it by accident.")
+                            Toggle { key: "locked" }
+                        }
+                        SRow {
+                            title: sw.tr("Dejar pasar los clics", "Click-through")
+                            desc: sw.tr("El reloj ignora el ratón. Para desactivarlo, usa el menú del icono de Arco en la bandeja del sistema.",
+                                        "The clock ignores the mouse. To turn it off, use the Arco icon menu in the system tray.")
+                            Toggle { key: "clickThrough" }
+                        }
+                        SRow {
+                            visible: plat.autostartSupported()
+                            title: sw.tr("Iniciar con Windows", "Start with Windows")
+                            desc: sw.tr("Común a todos los relojes.", "Shared by all clocks.")
+                            Toggle {
+                                checked: plat.autostartEnabled()
+                                onToggled: plat.setAutostart(checked)
+                            }
+                        }
+                    }
+
+                    Expander {
+                        key: "workday"
+                        icon: ""
+                        title: sw.tr("Jornada laboral", "Workday")
+                        desc: sw.conf.workMode ? Logic.fmtHM(sw.conf.workStart * 60) + " – " + Logic.fmtHM(sw.conf.workEnd * 60)
+                                               : sw.tr("El anillo «Día» mide el día completo", "The Day ring tracks the whole day")
+                        SRow {
+                            title: sw.tr("El anillo «Día» mide solo mi jornada", "The Day ring tracks only my workday")
+                            desc: sw.tr("Antes de empezar indica cuánto falta; después, «jornada terminada».",
+                                        "Before it starts it shows how long until it begins; afterwards, “workday over”.")
+                            Toggle { key: "workMode" }
+                        }
+                        SRow {
+                            enabled: sw.conf.workMode
+                            title: sw.tr("Horario", "Hours")
+                            desc: sw.conf.workMode && sw.conf.workEnd <= sw.conf.workStart
+                                  ? sw.tr("La hora de fin debe ser posterior a la de inicio.", "The end time must be later than the start time.")
+                                  : sw.tr("Flechas: ±30 min. También puedes escribir la hora (7:45, 7h45, 0745) y pulsar Enter.",
+                                          "Arrows: ±30 min. You can also type a time (7:45, 7h45, 0745) and press Enter.")
+                            TimeSpin { key: "workStart" }
+                            Label { text: "–"; color: sw.cText2 }
+                            TimeSpin { key: "workEnd" }
+                        }
+                    }
+
+                    Expander {
+                        key: "burnin"
+                        icon: ""
+                        title: sw.tr("Protección contra burn-in", "Burn-in protection")
+                        desc: sw.tr("Desplaza el reloj unos píxeles de vez en cuando para cuidar pantallas OLED.",
+                                    "Shifts the clock a few pixels from time to time to protect OLED screens.")
+                        SRow {
+                            title: sw.tr("Desplazar el reloj periódicamente", "Shift the clock periodically")
+                            Toggle { key: "antiBurn" }
+                        }
+                        SRow {
+                            enabled: sw.conf.antiBurn
+                            title: sw.tr("Radio", "Radius")
+                            SliderCtl { key: "burnRadius"; lo: 2; hi: 40; step: 1; factor: 1; suffix: " px" }
+                        }
+                        SRow {
+                            enabled: sw.conf.antiBurn
+                            title: sw.tr("Cada", "Every")
+                            SliderCtl { key: "burnInterval"; lo: 30; hi: 900; step: 10; factor: 1; suffix: " s" }
+                        }
+                        SRow {
+                            title: sw.tr("Atenuar a la mitad las pistas fijas", "Dim static tracks by half")
+                            Toggle { key: "burnDimTracks" }
+                        }
+                    }
+
+                    // ================= Sincronización =================
+                    CatHeader { key: "syncCat"; text: sw.tr("Sincronización", "Sync") }
+
+                    Expander {
+                        key: "sync"
+                        icon: ""
+                        title: sw.tr("Configuración entre equipos", "Settings across devices")
+                        desc: sync.status
+                        SRow {
+                            title: sw.tr("Método", "Method")
+                            desc: sw.tr("La posición de los relojes no se sincroniza: depende de los monitores de cada equipo.",
+                                        "Clock positions are not synced, since they depend on each device's monitors.")
+                            ComboBox {
+                                Layout.preferredWidth: 240
+                                model: [sw.tr("Desactivada", "Off"),
+                                        sw.tr("Cuenta de Google", "Google account"),
+                                        sw.tr("Carpeta sincronizada", "Synced folder")]
+                                currentIndex: ["off", "google", "folder"].indexOf(sync.mode)
+                                onActivated: (i) => {
+                                    const m = ["off", "google", "folder"][i]
+                                    if (m === "folder" && sync.folder === "") folderDlg.open()
+                                    else sync.setMode(m)
+                                    currentIndex = Qt.binding(() => ["off", "google", "folder"].indexOf(sync.mode))
+                                }
+                            }
+                        }
+                        SRow {
+                            visible: sync.mode === "google"
+                            title: sync.account !== "" ? sw.tr("Conectado como ", "Signed in as ") + sync.account
+                                                       : sw.tr("Cuenta de Google", "Google account")
+                            desc: !sync.googleAvailable
+                                  ? sw.tr("Esta versión no incluye acceso a Google. Usa una carpeta sincronizada.",
+                                          "This build has no Google access. Use a synced folder instead.")
+                                  : sw.tr("Arco solo puede ver su propia carpeta oculta en tu Drive, no tus archivos.",
+                                          "Arco can only see its own hidden folder in your Drive, not your files.")
+                            Button {
+                                visible: sync.googleAvailable && sync.account === "" && !sync.loggingIn
+                                text: sw.tr("Iniciar sesión con Google", "Sign in with Google")
+                                onClicked: sync.login()
+                            }
+                            Button {
+                                visible: sync.loggingIn
+                                text: sw.tr("Cancelar", "Cancel")
+                                onClicked: sync.cancelLogin()
+                            }
+                            Button {
+                                visible: sync.account !== ""
+                                text: sw.tr("Cerrar sesión", "Sign out")
+                                onClicked: sync.logout()
+                            }
+                        }
+                        SRow {
+                            visible: sync.mode === "folder"
+                            title: sw.tr("Carpeta", "Folder")
+                            desc: sync.folder !== "" ? sync.folder : sw.tr("Ninguna carpeta elegida. Por ejemplo, una carpeta de Google Drive para escritorio, OneDrive o Dropbox.",
+                                                                           "No folder chosen. For example, a Google Drive for desktop, OneDrive or Dropbox folder.")
+                            Button { text: sw.tr("Elegir…", "Browse…"); onClicked: folderDlg.open() }
+                        }
+                        SRow {
+                            enabled: sync.mode !== "off"
+                            title: sw.tr("Igualar también el número de relojes", "Also match the number of clocks")
+                            desc: sw.tr("Desactivado: cada equipo conserva sus relojes y recibe los ajustes en orden.",
+                                        "Off: each device keeps its own clocks and receives settings in order.")
+                            Toggle {
+                                checked: sync.syncCount
+                                onToggled: sync.setSyncCount(checked)
+                            }
+                        }
+                        SRow {
+                            enabled: sync.ready && !sync.busy
+                            title: sw.tr("Sincronizar", "Sync")
+                            desc: sw.tr("Es automático. «Subir» reemplaza lo guardado con este equipo; «Descargar» hace lo contrario.",
+                                        "It's automatic. “Upload” replaces the saved copy with this device; “Download” does the opposite.")
+                            Button { text: sw.tr("Ahora", "Now"); onClicked: sync.syncNow() }
+                            Button { text: sw.tr("Subir", "Upload"); onClicked: sync.pushNow() }
+                            Button { text: sw.tr("Descargar", "Download"); onClicked: sync.pullNow() }
+                        }
+                    }
+
+                    // ================= Aplicación =================
+                    CatHeader { key: "appCat"; text: sw.tr("Aplicación", "App") }
+
+                    Expander {
+                        key: "language"
+                        icon: ""
+                        title: sw.tr("Idioma y tema", "Language and theme")
+                        desc: sw.tr("Comunes a todos los relojes.", "Shared by all clocks.")
+                        SRow {
+                            title: sw.tr("Idioma", "Language")
+                            ComboBox {
+                                Layout.preferredWidth: 200
+                                model: ["Español", "English"]
+                                currentIndex: ui.lang === "en" ? 1 : 0
+                                onActivated: (i) => ui.setLang(i === 1 ? "en" : "es")
+                            }
+                        }
+                        SRow {
+                            title: sw.tr("Tema de la ventana de ajustes", "Settings window theme")
+                            ComboBox {
+                                Layout.preferredWidth: 200
+                                model: [sw.tr("Según Windows", "Use system setting"), sw.tr("Claro", "Light"), sw.tr("Oscuro", "Dark")]
+                                currentIndex: ["system", "light", "dark"].indexOf(ui.theme)
+                                onActivated: (i) => ui.setTheme(["system", "light", "dark"][i])
+                            }
+                        }
+                    }
+
+                    Expander {
+                        key: "about"
+                        icon: ""
+                        title: sw.tr("Ayuda", "Help")
+                        desc: "Arco " + appVersion
+                        WideRow {
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                textFormat: Text.StyledText
+                                color: sw.cText
+                                lineHeight: 1.3
+                                text: ui.lang === "en"
+? "<b>On the clock</b><br>" +
+  "Drag: move · Wheel: size · Shift + wheel: opacity · Double-click: settings · Right-click: menu.<br>" +
+  "Hover a ring to see its name, percentage and time left.<br><br>" +
+  "<b>Tray icon</b> (next to the Windows clock)<br>" +
+  "Click: show or hide all clocks. Right-click: settings for each clock, add clocks, make clocks clickable again, quit.<br><br>" +
+  "<b>Several monitors</b><br>" +
+  "Right-click a clock → New clock for another monitor. Each clock has its own settings.<br><br>" +
+  "<b>Resource use</b><br>" +
+  "Drawing runs on the GPU. Each clock updates once a second, or once a minute when it shows no seconds. Hidden clocks do no work."
+: "<b>Sobre el reloj</b><br>" +
+  "Arrastrar: mover · Rueda: tamaño · Mayús + rueda: transparencia · Doble clic: ajustes · Clic derecho: menú.<br>" +
+  "Pasa el ratón por un anillo para ver su nombre, porcentaje y lo que falta.<br><br>" +
+  "<b>Icono de la bandeja</b> (junto al reloj de Windows)<br>" +
+  "Clic: mostrar u ocultar todos los relojes. Clic derecho: ajustes de cada reloj, añadir relojes, volver a recibir clics y salir.<br><br>" +
+  "<b>Varios monitores</b><br>" +
+  "Clic derecho sobre un reloj → Nuevo reloj para otro monitor. Cada reloj tiene sus propios ajustes.<br><br>" +
+  "<b>Consumo</b><br>" +
+  "El dibujo lo hace la GPU. Cada reloj se actualiza una vez por segundo, o una vez por minuto si no muestra segundos. Oculto no hace ningún trabajo."
+                            }
+                        }
+                    }
+
+                    Item { Layout.preferredHeight: 24 }
                 }
             }
         }

@@ -7,7 +7,7 @@ import "clocklogic.js" as Logic
 Window {
     id: win
     visible: false
-    title: "Arco · reloj " + number
+    title: "Arco · " + (ui.lang === "en" ? "clock " : "reloj ") + number
     color: "transparent"
 
     property int clockId: 0          // 0 = primer reloj (conserva la sección «reloj» de versiones anteriores)
@@ -38,7 +38,9 @@ Window {
         // apariencia
         property int style: 0
         property real dialSize: 240
-        property real contentOpacity: 0.85
+        property real contentOpacity: 0.85       // solo para migrar ajustes anteriores a la 1.3
+        property bool perStyle: true              // cada estilo recuerda su aspecto
+        property string styleProfiles: "{}"
         property real thickScale: 1.0
         property real centerRatio: 0.45
         property real textScale: 1.0
@@ -98,7 +100,7 @@ Window {
     readonly property var cfgKeys: [
         "cfgVersion", "showYear", "showMonth", "showWeek", "showDay", "showHour", "showMinute",
         "cYear", "cMonth", "cWeek", "cDay", "cHour", "cMinute", "paletteIndex",
-        "style", "dialSize", "contentOpacity", "thickScale", "centerRatio", "textScale", "trackOpacity",
+        "style", "perStyle", "styleProfiles", "dialSize", "contentOpacity", "thickScale", "centerRatio", "textScale", "trackOpacity",
         "showBackdrop", "backdropOpacity", "cBack", "cText", "hoverReveal",
         "oYear", "oMonth", "oWeek", "oDay", "oHour", "oMinute", "oTime", "oDate", "oSub", "oLabels", "oTicks", "oHands",
         "showText", "showTime", "timeFormat", "showDate", "dateFormat", "showSub", "showSeconds", "h12", "smooth",
@@ -107,10 +109,14 @@ Window {
         "antiBurn", "burnRadius", "burnInterval", "burnDimTracks"
     ]
     function applyValues(v) {
+        swapping = true                   // los valores ya vienen completos: no mezclar perfiles
         for (let i = 0; i < cfgKeys.length; i++) {
             const k = cfgKeys[i]
             if (v[k] !== undefined && typeof v[k] === typeof cfg[k] && cfg[k] !== v[k]) cfg[k] = v[k]
         }
+        swapping = false
+        migrate()                          // por si llegan ajustes de una versión anterior
+        lastStyle = cfg.style
     }
     function snapshot() {
         const o = {}
@@ -119,13 +125,15 @@ Window {
     }
 
     readonly property var ringDefs: [
-        { key: "year",   name: "Año",    short: "Año",  show: "showYear",   col: "cYear",   op: "oYear"   },
-        { key: "month",  name: "Mes",    short: "Mes",  show: "showMonth",  col: "cMonth",  op: "oMonth"  },
-        { key: "week",   name: "Semana", short: "Sem",  show: "showWeek",   col: "cWeek",   op: "oWeek"   },
-        { key: "day",    name: "Día",    short: "Día",  show: "showDay",    col: "cDay",    op: "oDay"    },
-        { key: "hour",   name: "Hora",   short: "Hora", show: "showHour",   col: "cHour",   op: "oHour"   },
-        { key: "minute", name: "Minuto", short: "Min",  show: "showMinute", col: "cMinute", op: "oMinute" }
+        { key: "year",   es: "Año",    en: "Year",   sEs: "Año",  sEn: "Yr",  show: "showYear",   col: "cYear",   op: "oYear"   },
+        { key: "month",  es: "Mes",    en: "Month",  sEs: "Mes",  sEn: "Mo",  show: "showMonth",  col: "cMonth",  op: "oMonth"  },
+        { key: "week",   es: "Semana", en: "Week",   sEs: "Sem",  sEn: "Wk",  show: "showWeek",   col: "cWeek",   op: "oWeek"   },
+        { key: "day",    es: "Día",    en: "Day",    sEs: "Día",  sEn: "Day", show: "showDay",    col: "cDay",    op: "oDay"    },
+        { key: "hour",   es: "Hora",   en: "Hour",   sEs: "Hora", sEn: "Hr",  show: "showHour",   col: "cHour",   op: "oHour"   },
+        { key: "minute", es: "Minuto", en: "Minute", sEs: "Min",  sEn: "Min", show: "showMinute", col: "cMinute", op: "oMinute" }
     ]
+    function ringName(d) { return ui.lang === "en" ? d.en : d.es }
+    function ringShort(d) { return ui.lang === "en" ? d.sEn : d.sEs }
     readonly property var activeRings: ringDefs.filter(d => cfg[d.show])
 
     // ---------- Estilo ----------
@@ -198,6 +206,65 @@ Window {
 
     property int hoverIdx: -1
 
+    // ---------- Mezclador de transparencias ----------
+    // Cada elemento tiene su propia opacidad. El control «General» vale lo mismo que el elemento
+    // más opaco de los que se ven, y al moverlo escala todos en proporción (como un mezclador de volumen).
+    readonly property var mixKeys: {
+        const k = activeRings.map(d => d.op)
+        if (cfg.showBackdrop) k.push("backdropOpacity")
+        if (cfg.showText) {
+            if (cfg.showTime) k.push("oTime")
+            if (cfg.showDate) k.push("oDate")
+            if (cfg.showSub) k.push("oSub")
+        }
+        if (!radial && n > 0) k.push("oLabels")
+        if (analog) { k.push("oTicks"); k.push("oHands") }
+        return k
+    }
+    readonly property real master: Logic.mixMaster(mixKeys.map(k => cfg[k]))
+    function setMaster(m) {
+        const keys = mixKeys
+        const vals = Logic.mixScale(keys.map(k => cfg[k]), Math.max(0.05, Math.min(1, m)))
+        for (let i = 0; i < keys.length; i++) cfg[keys[i]] = vals[i]
+    }
+    // «Opacidad completa al pasar el ratón»: lleva el elemento más opaco a 100 % y el resto en proporción.
+    property real revealK: (cfg.hoverReveal && hover.hovered && master > 0.02) ? 1 / master : 1
+    Behavior on revealK { NumberAnimation { duration: 180 } }
+    function op(v) { return Math.min(1, v * revealK) }
+
+    // ---------- Ajustes independientes por estilo ----------
+    // Al cambiar de estilo se guarda el aspecto del estilo anterior y se recupera el del nuevo.
+    readonly property var styleKeys: [
+        "dialSize", "thickScale", "centerRatio", "textScale", "trackOpacity", "hoverReveal",
+        "showBackdrop", "backdropOpacity", "cBack", "cText", "paletteIndex",
+        "cYear", "cMonth", "cWeek", "cDay", "cHour", "cMinute",
+        "oYear", "oMonth", "oWeek", "oDay", "oHour", "oMinute", "oTime", "oDate", "oSub", "oLabels",
+        "oTicks", "oHands", "cHands", "cSecond"
+    ]
+    property int lastStyle: -1
+    property bool swapping: false
+    function profiles() {
+        try { const p = JSON.parse(cfg.styleProfiles); return (p && typeof p === "object") ? p : {} }
+        catch (e) { return {} }
+    }
+    function styleSwitched() {
+        if (swapping || lastStyle < 0 || lastStyle === cfg.style || !cfg.perStyle) { lastStyle = cfg.style; return }
+        const prof = profiles()
+        const cur = {}
+        styleKeys.forEach(k => cur[k] = cfg[k])
+        prof[lastStyle] = cur
+        const next = prof[cfg.style]
+        swapping = true
+        if (next) styleKeys.forEach(k => { if (next[k] !== undefined && typeof next[k] === typeof cfg[k]) cfg[k] = next[k] })
+        swapping = false
+        cfg.styleProfiles = JSON.stringify(prof)
+        lastStyle = cfg.style
+    }
+    Connections {
+        target: cfg
+        function onStyleChanged() { win.styleSwitched() }
+    }
+
     // ---------- Anti burn-in ----------
     property int burnStep: 0
     readonly property var burn: cfg.antiBurn ? Logic.burnOffset(burnStep, cfg.burnRadius) : ({ x: 0, y: 0 })
@@ -260,15 +327,28 @@ Window {
         y -= Math.round((height - oh) / 2)
     }
 
-    property bool ready: false
-    Component.onCompleted: {
+    // Actualiza ajustes guardados por versiones anteriores.
+    function migrate() {
         if (cfg.cfgVersion < 2) {          // ajustes de la versión 1: «12 h» y «segundos» pasan al formato
             cfg.timeFormat = (cfg.h12 ? "h:mm" : "HH:mm") + (cfg.showSeconds ? ":ss" : "") + (cfg.h12 ? " A" : "")
             cfg.cfgVersion = 2
         }
+        if (cfg.cfgVersion < 3) {          // 1.2 → 1.3: la opacidad general pasa a cada elemento
+            const c = Math.max(0.05, Math.min(1, cfg.contentOpacity))
+            const all = ["oYear", "oMonth", "oWeek", "oDay", "oHour", "oMinute", "oTime", "oDate", "oSub",
+                         "oLabels", "oTicks", "oHands", "backdropOpacity"]
+            if (c < 0.999) all.forEach(k => cfg[k] = Math.round(cfg[k] * c * 1000) / 1000)
+            cfg.contentOpacity = 1
+            cfg.cfgVersion = 3
+        }
+    }
+
+    property bool ready: false
+    Component.onCompleted: {
+        migrate()
         const clone = app ? app.takeClone() : null
         if (clone) {
-            for (const k in clone.values) cfg[k] = clone.values[k]
+            applyValues(clone.values)
             x = clone.x; y = clone.y
             if (plat.screenCount() > 1) moveToNextScreen()
             else { x += 40; y += 40; if (!isOnScreen(centerX(), centerY())) centerOnScreen() }
@@ -278,6 +358,7 @@ Window {
             resetPosition()
         }
         cfg.winX = x; cfg.winY = y
+        lastStyle = cfg.style
         ready = true
         visible = true
     }
@@ -294,8 +375,7 @@ Window {
         Behavior on x { NumberAnimation { duration: 1600; easing.type: Easing.InOutSine } }
         Behavior on y { NumberAnimation { duration: 1600; easing.type: Easing.InOutSine } }
 
-        opacity: (cfg.hoverReveal && hover.hovered) ? 1.0 : cfg.contentOpacity
-        Behavior on opacity { NumberAnimation { duration: 180 } }
+        // La transparencia va en cada elemento (ver «Mezclador» más abajo).
         // Capa en GPU: opacidad de grupo correcta y antialiasing MSAA para el estilo Segmentos
         layer.enabled: true
         layer.samples: win.st === 1 ? 4 : 0
@@ -308,7 +388,7 @@ Window {
             height: win.radial ? width : parent.height
             radius: win.radial ? width / 2 : Math.min(width, height) * 0.08
             color: cfg.cBack
-            opacity: cfg.backdropOpacity
+            opacity: win.op(cfg.backdropOpacity)
         }
 
         // Anillos (estilos circulares y alrededor de la esfera analógica)
@@ -318,7 +398,7 @@ Window {
                 required property var modelData
                 required property int index
                 anchors.fill: parent
-                opacity: cfg[modelData.op]
+                opacity: win.op(cfg[modelData.op])
                 radius: win.ringRadius(index)
                 thickness: win.thick
                 color: cfg[modelData.col]
@@ -341,8 +421,8 @@ Window {
             tickColor: cfg.cText
             handColor: cfg.cHands
             secondColor: cfg.cSecond
-            tickOpacity: cfg.oTicks
-            handOpacity: cfg.oHands
+            tickOpacity: win.op(cfg.oTicks)
+            handOpacity: win.op(cfg.oHands)
         }
 
         // Barras horizontales: nombre · barra · porcentaje
@@ -355,11 +435,11 @@ Window {
                 y: win.barsTop + index * win.rowH
                 width: win.dialW - 2 * win.pad
                 height: win.rowH
-                opacity: cfg[modelData.op]
+                opacity: win.op(cfg[modelData.op])
                 Text {
                     width: win.labelW
                     anchors.verticalCenter: parent.verticalCenter
-                    text: modelData.name
+                    text: win.ringName(modelData)
                     color: cfg.cText
                     opacity: cfg.oLabels
                     font.pixelSize: Math.max(6, win.rowH * 0.40)
@@ -400,7 +480,7 @@ Window {
                 y: win.barsTop
                 width: win.colW
                 height: win.dialH - win.pad - win.barsTop
-                opacity: cfg[modelData.op]
+                opacity: win.op(cfg[modelData.op])
                 Text {
                     width: parent.width
                     height: win.colLabelH
@@ -429,7 +509,7 @@ Window {
                     height: win.colLabelH
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
-                    text: modelData.short
+                    text: win.ringShort(modelData)
                     color: cfg.cText
                     opacity: cfg.oLabels
                     font.pixelSize: Math.max(6, win.colW * 0.28)
@@ -473,8 +553,8 @@ Window {
                 font.weight: Font.DemiBold
                 font.features: ({ "tnum": 1 })
                 color: textCol.hov ? cfg[textCol.hov.ring.col] : cfg.cText
-                opacity: textCol.hov ? 1 : cfg.oTime
-                text: textCol.hov ? Math.floor(textCol.hov.val.p * 100) + " %" : Logic.formatDate(win.now, cfg.timeFormat)
+                opacity: textCol.hov ? 1 : win.op(cfg.oTime)
+                text: textCol.hov ? Math.floor(textCol.hov.val.p * 100) + " %" : Logic.formatDate(win.now, cfg.timeFormat, ui.lang)
             }
             Text {
                 width: parent.width
@@ -484,8 +564,8 @@ Window {
                 maximumLineCount: 4
                 font.pixelSize: Math.max(6, textCol.base * 0.17)
                 color: cfg.cText
-                opacity: cfg.oDate
-                text: Logic.formatDate(win.now, cfg.dateFormat)
+                opacity: win.op(cfg.oDate)
+                text: Logic.formatDate(win.now, cfg.dateFormat, ui.lang)
             }
             Text {
                 width: parent.width
@@ -495,10 +575,11 @@ Window {
                 maximumLineCount: 3
                 font.pixelSize: Math.max(6, textCol.base * 0.15)
                 color: cfg.cText
-                opacity: textCol.hov ? 0.85 : cfg.oSub
+                opacity: textCol.hov ? 0.85 : win.op(cfg.oSub)
                 text: textCol.hov
-                      ? textCol.hov.ring.name + " · quedan " + Logic.fmt(textCol.hov.val.remaining, cfg.showSeconds || textCol.hov.ring.key === "minute")
-                      : Logic.daySubtitle(win.t.day, cfg.showSeconds)
+                      ? Logic.remainingText(win.ringName(textCol.hov.ring), textCol.hov.val.remaining,
+                                            cfg.showSeconds || textCol.hov.ring.key === "minute", ui.lang)
+                      : Logic.daySubtitle(win.t.day, cfg.showSeconds, ui.lang)
             }
         }
 
@@ -514,7 +595,7 @@ Window {
         }
         TapHandler {
             acceptedButtons: Qt.RightButton
-            onTapped: ctxMenu.open()
+            onTapped: Qt.callLater(win.showMenu)     // después del clic, para no bloquear el gesto
         }
         WheelHandler {
             target: null
@@ -522,7 +603,7 @@ Window {
             onWheel: (ev) => {
                 const d = (ev.angleDelta.y !== 0 ? ev.angleDelta.y : ev.angleDelta.x) / 120
                 if (ev.modifiers & Qt.ShiftModifier)
-                    cfg.contentOpacity = Math.max(0.1, Math.min(1, cfg.contentOpacity + d * 0.05))
+                    win.setMaster(win.master + d * 0.05)
                 else
                     win.setSize(cfg.dialSize + d * Math.max(16, cfg.dialSize * 0.05))
             }
@@ -549,7 +630,57 @@ Window {
         hoverIdx = (i >= 0 && i < n) ? i : -1
     }
 
-    AppMenu { id: ctxMenu; conf: cfg; clock: win; settingsWindow: settingsWin; app: win.app }
+    // ---------- Menú del clic derecho (menú nativo, ver arco_ui.py) ----------
+    function tr(es, en) { return ui.lang === "en" ? en : es }
+    function menuItems() {
+        const pos = [
+            [0, 0, tr("Arriba a la izquierda", "Top left")], [0.5, 0, tr("Arriba al centro", "Top center")],
+            [1, 0, tr("Arriba a la derecha", "Top right")], [0, 0.5, tr("Centro a la izquierda", "Middle left")],
+            [1, 0.5, tr("Centro a la derecha", "Middle right")], [0, 1, tr("Abajo a la izquierda", "Bottom left")],
+            [0.5, 1, tr("Abajo al centro", "Bottom center")], [1, 1, tr("Abajo a la derecha", "Bottom right")]
+        ]
+        const posItems = [{ id: "center", text: tr("Centrar en la pantalla", "Center on screen") }, { separator: true }]
+        pos.forEach(p => posItems.push({ id: "place:" + p[0] + ":" + p[1], text: p[2] }))
+        posItems.push({ separator: true })
+        posItems.push({ id: "nextScreen", text: tr("Pasar al siguiente monitor", "Move to next monitor"), enabled: plat.screenCount() > 1 })
+        const styleItems = Logic.styleNames(ui.lang).map((name, i) => ({ id: "style:" + i, text: name, checked: cfg.style === i }))
+        return [
+            { id: "settings", text: tr("Ajustes…", "Settings…") },
+            { id: "hide", text: tr("Ocultar este reloj", "Hide this clock") },
+            { separator: true },
+            { id: "add", text: tr("Nuevo reloj para otro monitor", "New clock for another monitor") },
+            { id: "close", text: tr("Cerrar este reloj", "Close this clock"), enabled: !!app && app.count > 1 },
+            { separator: true },
+            { text: tr("Estilo", "Style"), items: styleItems },
+            { text: tr("Posición", "Position"), items: posItems },
+            { separator: true },
+            { id: "onTop", text: tr("Siempre visible", "Always on top"), checked: cfg.onTop },
+            { id: "locked", text: tr("Fijar posición", "Lock position"), checked: cfg.locked },
+            { id: "clickThrough", text: tr("Dejar pasar los clics", "Click-through"), checked: cfg.clickThrough },
+            { id: "antiBurn", text: "Anti burn-in", checked: cfg.antiBurn },
+            { separator: true },
+            { id: "help", text: tr("Ayuda", "Help") },
+            { id: "quit", text: tr("Salir", "Quit") }
+        ]
+    }
+    function handleMenu(id) {
+        if (!id) return
+        const parts = id.split(":")
+        switch (parts[0]) {
+        case "settings": settingsWin.openIt(); break
+        case "hide": visible = false; break
+        case "add": if (app) app.addClock(win); break
+        case "close": if (app) app.removeClock(win); break
+        case "style": cfg.style = parseInt(parts[1], 10); break
+        case "center": centerOnScreen(); break
+        case "place": place(parseFloat(parts[1]), parseFloat(parts[2])); break
+        case "nextScreen": moveToNextScreen(); break
+        case "onTop": case "locked": case "clickThrough": case "antiBurn": cfg[parts[0]] = !cfg[parts[0]]; break
+        case "help": settingsWin.openHelp(); break
+        case "quit": Qt.quit(); break
+        }
+    }
+    function showMenu() { handleMenu(tray.popup(menuItems())) }
 
     SettingsWindow { id: settingsWin; conf: cfg; clock: win; app: win.app }
 }

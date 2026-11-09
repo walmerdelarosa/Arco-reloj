@@ -28,8 +28,11 @@ class SyncService(QObject):
     requestLocal = Signal()                           # QML responde llamando a report()
     _post = Signal(object)                            # ejecuta una función en el hilo principal
 
-    def __init__(self, client_folders: list[Path], enabled: bool = True):
+    def __init__(self, client_folders: list[Path], ui=None, enabled: bool = True):
         super().__init__()
+        self._ui = ui
+        if ui is not None:
+            ui.changed.connect(self.stateChanged.emit)     # el estado se muestra en el idioma elegido
         self._post.connect(self._call)
         self._enabled = enabled
         self._client_id, self._client_secret = core.load_client(*client_folders)
@@ -48,7 +51,7 @@ class SyncService(QObject):
 
         self._local: dict | None = None
         self._remote: dict | None = None
-        self._status = "Desactivada."
+        self._status = ("Desactivada.", "Off.")
         self._last = ""
         self._busy = False
         self._again = False
@@ -70,7 +73,10 @@ class SyncService(QObject):
 
     # ------------------------------------------------------------ propiedades para QML
     def _g_mode(self): return self._mode
-    def _g_status(self): return self._status
+    def _lang(self) -> str:
+        return self._ui.lang if self._ui is not None else "es"
+
+    def _g_status(self): return self._status[1] if self._lang() == "en" else self._status[0]
     def _g_account(self): return self._account
     def _g_folder(self): return self._folder
     def _g_google(self): return bool(self._client_id)
@@ -96,8 +102,8 @@ class SyncService(QObject):
         s = QSettings()
         s.setValue("sync/" + key, value)
 
-    def _set_status(self, text: str) -> None:
-        self._status = text
+    def _set_status(self, es: str, en: str = "") -> None:
+        self._status = (es, en or es)
         self.stateChanged.emit()
 
     def _configure(self) -> None:
@@ -111,15 +117,16 @@ class SyncService(QObject):
             self._backend = core.FolderBackend(self._folder)
 
         if self._mode == "off":
-            self._status = "Desactivada."
+            self._status = ("Desactivada.", "Off.")
         elif self._mode == "google" and not self._client_id:
-            self._status = "Esta versión no incluye acceso a Google. Usa una carpeta sincronizada."
+            self._status = ("Esta versión no incluye acceso a Google. Usa una carpeta sincronizada.",
+                            "This build has no Google access. Use a synced folder instead.")
         elif self._mode == "google" and not self._refresh:
-            self._status = "Inicia sesión con tu cuenta de Google."
+            self._status = ("Inicia sesión con tu cuenta de Google.", "Sign in with your Google account.")
         elif self._mode == "folder" and not self._folder:
-            self._status = "Elige la carpeta donde guardar la configuración."
+            self._status = ("Elige la carpeta donde guardar la configuración.", "Choose the folder where settings are stored.")
         elif self._backend:
-            self._status = "Conectando…"
+            self._status = ("Conectando…", "Connecting…")
 
         self._pull_timer.stop()
         if self._backend and self._enabled:
@@ -147,8 +154,10 @@ class SyncService(QObject):
             self._save("refreshToken", "")
             self._configure()
         if err is not None:
-            msg = str(err) if isinstance(err, core.SyncError) else f"Error inesperado: {err}"
-            self._set_status(msg)
+            if isinstance(err, core.SyncError):
+                self._set_status(err.es, err.en)
+            else:
+                self._set_status(f"Error inesperado: {err}", f"Unexpected error: {err}")
         else:
             done(res)
         if self._again:
@@ -159,8 +168,10 @@ class SyncService(QObject):
         self._synced = core.digest(data)
         self._save("syncedHash", self._synced)
         self._last = time.strftime("%H:%M")
-        where = self._backend.describe() if self._backend else ""
-        self._set_status(f"Sincronizado con {where} a las {self._last}.")
+        if isinstance(self._backend, core.FolderBackend):
+            self._set_status(f"Sincronizado con la carpeta a las {self._last}.", f"Synced with the folder at {self._last}.")
+        else:
+            self._set_status(f"Sincronizado con Google Drive a las {self._last}.", f"Synced with Google Drive at {self._last}.")
 
     def _doc(self, data: dict) -> dict:
         return core.make_doc(data, self._stamp, self._device, socket.gethostname())
@@ -211,7 +222,7 @@ class SyncService(QObject):
         if self._local is None:
             return
         backend = self._backend
-        self._set_status("Sincronizando…")
+        self._set_status("Sincronizando…", "Syncing…")
         self._run(backend.read, lambda remote: self._after_read(remote, force))
 
     def _after_read(self, remote, force) -> None:
@@ -220,7 +231,7 @@ class SyncService(QObject):
         self._remote = remote
         action = force or core.decide(self._local, self._stamp, remote, self._sync_count)
         if action == "pull" and remote is None:
-            self._set_status("Todavía no hay configuración guardada en la nube.")
+            self._set_status("Todavía no hay configuración guardada en la nube.", "There are no saved settings in the cloud yet.")
             return
         if action == "pull":
             data = remote["data"]
@@ -277,11 +288,11 @@ class SyncService(QObject):
             return
         self._logging_in = True
         self._cancel_login = False
-        self._set_status("Completa el inicio de sesión en el navegador…")
-        cid, sec = self._client_id, self._client_secret
+        self._set_status("Completa el inicio de sesión en el navegador…", "Finish signing in in your browser…")
+        cid, sec, lang = self._client_id, self._client_secret, self._lang()
 
         def work():
-            return core.google_login(cid, sec, webbrowser.open, lambda: self._cancel_login)
+            return core.google_login(cid, sec, webbrowser.open, lambda: self._cancel_login, lang=lang)
 
         def done(res):
             self._refresh, self._account = res

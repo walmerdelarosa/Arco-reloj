@@ -1,10 +1,10 @@
 ﻿; Instalador de Arco para Windows (Inno Setup 6).
 ; Se compila desde GitHub Actions (.github/workflows/release.yml) o con build_installer.bat.
 ; Requiere haber generado antes dist\ArcoReloj con PyInstaller.
-;   iscc /DMyAppVersion=1.2.0 installer\ArcoReloj.iss
+; iscc /DMyAppVersion=1.3.0 installer\ArcoReloj.iss
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.2.0"
+  #define MyAppVersion "1.3.0"
 #endif
 #define MyAppName "Arco Reloj"
 #define MyAppExe "ArcoReloj.exe"
@@ -29,25 +29,40 @@ UninstallDisplayIcon={app}\{#MyAppExe}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+ShowLanguageDialog=auto
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
 RestartApplications=no
 
 [Languages]
-Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
+
+[CustomMessages]
+es.DesktopIcon=Crear un acceso directo en el escritorio
+en.DesktopIcon=Create a desktop shortcut
+es.Shortcuts=Accesos directos:
+en.Shortcuts=Shortcuts:
+es.AutoStart=Iniciar Arco al iniciar sesión en Windows
+en.AutoStart=Start Arco when I sign in to Windows
+es.StartupGroup=Inicio:
+en.StartupGroup=Startup:
+es.OpenNow=Abrir Arco ahora
+en.OpenNow=Open Arco now
+es.Uninstall=Desinstalar Arco Reloj
+en.Uninstall=Uninstall Arco Clock
 
 [Tasks]
-Name: "desktopicon"; Description: "Crear un acceso directo en el escritorio"; GroupDescription: "Accesos directos:"
-Name: "autostart"; Description: "Iniciar Arco al iniciar sesión en Windows"; GroupDescription: "Inicio:"
+Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Shortcuts}"
+Name: "autostart"; Description: "{cm:AutoStart}"; GroupDescription: "{cm:StartupGroup}"
 
 [Files]
 Source: "..\dist\ArcoReloj\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"
-Name: "{group}\Desinstalar {#MyAppName}"; Filename: "{uninstallexe}"
+Name: "{group}\{cm:Uninstall}"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; Tasks: desktopicon
 
 [Registry]
@@ -56,7 +71,7 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "{#MyRunKeyName}"; Flags: uninsdeletevalue dontcreatekey
 
 [Run]
-Filename: "{app}\{#MyAppExe}"; Description: "Abrir Arco ahora"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExe}"; Description: "{cm:OpenNow}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/C taskkill /IM {#MyAppExe} /F"; Flags: runhidden; RunOnceId: "KillArco"

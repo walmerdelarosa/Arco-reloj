@@ -1,6 +1,6 @@
 const fs=require('fs');
 const src=fs.readFileSync(__dirname + '/../qml/clocklogic.js','utf8').replace('.pragma library','');
-const L=new Function(src+';return {compute,fmt,timeText,daySubtitle,nextDelay,burnOffset,palettes,pad,formatDate,usesSeconds,parseHM,fmtHM,isoWeek,dayOfYear,styles,timePresets,datePresets};')();
+const L=new Function(src+';return {compute,fmt,timeText,daySubtitle,nextDelay,burnOffset,palettes,pad,formatDate,usesSeconds,parseHM,fmtHM,isoWeek,dayOfYear,styles,timePresets,datePresets,styleNames,paletteNames,datePresetsFor,remainingText,mixMaster,mixScale};')();
 const assert=require('assert');
 let d=new Date(2026,10,3,12,0,0,0); let t=L.compute(d,{});
 assert(Math.abs(t.day.p-0.5)<1e-9); assert.equal(t.month.segs,30);
@@ -77,5 +77,29 @@ assert.equal(L.parseHM(''),-1);
 assert.equal(L.fmtHM(495),'08:15');
 assert.equal(L.fmtHM(1440),'24:00');
 for(let v=0;v<=1440;v+=7) assert.equal(L.parseHM(L.fmtHM(v)),v);
+
+// ---------- inglés ----------
+t=L.compute(new Date(2026,10,3,13,0),{workMode:true,workStart:8,workEnd:18});
+assert.equal(L.daySubtitle(t.day,false,'en'),'5 h 00 min left in workday');
+t=L.compute(new Date(2026,10,3,7,15),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false,'en'),'workday starts in 45 min');
+t=L.compute(new Date(2026,10,3,19,0),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false,'en'),'workday over');
+t=L.compute(new Date(2026,10,3,23,59,30),{}); assert.equal(L.daySubtitle(t.day,true,'en'),'30 s left today');
+assert.equal(L.daySubtitle(t.day,true),'quedan 30 s del día');
+assert.equal(L.remainingText('Month',125e3,true,'en'),'Month · 2 min 05 s left');
+assert.equal(L.remainingText('Mes',125e3,true,'es'),'Mes · quedan 2 min 05 s');
+assert.equal(L.formatDate(f,'dddd, MMMM d','en'),'Sunday, November 8');
+assert.equal(L.formatDate(f,'ddd MMM','en'),'Sun Nov');
+assert.equal(L.formatDate(f,'ddd MMM','es'),'dom nov');
+assert.equal(L.styleNames('en').length,8); assert.equal(L.styleNames('es')[7],'Analógico');
+assert.equal(L.paletteNames('en')[1],'Sunset');
+for(const p of L.datePresetsFor('en')) assert(L.formatDate(f,p,'en').length>0);
+
+// ---------- mezclador ----------
+assert.equal(L.mixMaster([0.2,0.8,0.5]),0.8);
+assert.deepEqual(L.mixScale([0.2,0.8,0.4],0.4),[0.1,0.4,0.2]);
+assert.deepEqual(L.mixScale([0.5,1],1),[0.5,1]);
+assert.deepEqual(L.mixScale([0,0],0.6),[0.6,0.6]);
+assert.deepEqual(L.mixScale([0.3,0.6],2),[0.5,1]);
+assert.equal(L.mixMaster([]),0);
 
 console.log('OK – todas las pruebas pasaron');

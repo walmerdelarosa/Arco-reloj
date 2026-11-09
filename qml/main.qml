@@ -1,7 +1,6 @@
 import QtQuick
 import QtQml.Models
 import QtCore
-import Qt.labs.platform as Platform
 import "clocklogic.js" as Logic
 
 // Gestor de relojes: crea una ventana ClockWindow por cada reloj guardado
@@ -98,7 +97,9 @@ Item {
         const w = primary
         if (!w) { console.error("selftest-error: sin reloj"); return }
         w.settingsWindow.openIt()
-        for (let p = 0; p < w.settingsWindow.pageCount; p++) w.settingsWindow.showPage(p)
+        w.settingsWindow.expandAll()
+        w.settingsWindow.order.forEach(k => w.settingsWindow.scrollTo(k))
+        w.settingsWindow.updateSpy()
         w.conf.showDate = true
         w.conf.showWeek = true
         w.conf.workMode = true
@@ -109,8 +110,15 @@ Item {
             w.conf.showText = !w.conf.showText
             w.conf.showText = !w.conf.showText
         }
+        w.setMaster(0.5)
+        if (Math.abs(w.master - 0.5) > 0.01) console.error("selftest-error: mezclador " + w.master)
         w.conf.style = 0
         w.hoverIdx = -1
+        if (tray.check(w.menuItems()) <= 0) console.error("selftest-error: menú del reloj vacío")
+        if (tray.check(trayItems()) <= 0) console.error("selftest-error: menú de la bandeja vacío")
+        ui.setLang(ui.lang === "en" ? "es" : "en")
+        ui.setLang(ui.lang === "en" ? "es" : "en")
+        ui.setTheme(ui.dark ? "light" : "dark")
         applyConfig(JSON.parse(JSON.stringify(exportConfig())))
         addClock(w)
         if (clocks.count !== 2) console.error("selftest-error: no se creó el segundo reloj")
@@ -182,13 +190,46 @@ Item {
 
     readonly property var primary: clocks.count > 0 ? clocks.objectAt(0) : null
 
-    Platform.SystemTrayIcon {
-        visible: true
-        icon.source: Qt.resolvedUrl("icon.svg")
-        tooltip: mgr.primary ? "Arco · " + Logic.daySubtitle(mgr.primary.t.day, false) : "Arco"
-        menu: TrayMenu { app: mgr; clocks: clocks }
-        onActivated: (reason) => {
-            if (reason === Platform.SystemTrayIcon.Trigger) mgr.setAllVisible(!mgr.anyVisible())
+    // ---------- Icono de la bandeja (menú nativo, ver arco_ui.py) ----------
+    function tr(es, en) { return ui.lang === "en" ? en : es }
+    function trayItems() {
+        let anyThrough = false
+        const settings = []
+        for (let i = 0; i < clocks.count; i++) {
+            const w = clocks.objectAt(i)
+            if (w && w.conf.clickThrough) anyThrough = true
+            settings.push({ id: "settings:" + i, text: tr("Reloj ", "Clock ") + (i + 1) + "…" })
         }
+        return [
+            { id: "toggle", text: tr("Mostrar u ocultar relojes", "Show or hide clocks") },
+            clocks.count > 1 ? { text: tr("Ajustes", "Settings"), items: settings }
+                             : { id: "settings:0", text: tr("Ajustes…", "Settings…") },
+            { id: "add", text: tr("Añadir reloj para otro monitor", "Add a clock for another monitor") },
+            { id: "release", text: tr("Volver a recibir clics", "Make clocks clickable again"), enabled: anyThrough },
+            { separator: true },
+            { id: "help", text: tr("Ayuda", "Help") },
+            { id: "quit", text: tr("Salir", "Quit") }
+        ]
+    }
+    function handleTray(id) {
+        const parts = id.split(":")
+        const w = parts.length > 1 ? clocks.objectAt(parseInt(parts[1], 10)) : primary
+        switch (parts[0]) {
+        case "toggle": setAllVisible(!anyVisible()); break
+        case "settings": if (w) { w.visible = true; w.settingsWindow.openIt() } break
+        case "add": addClock(primary); break
+        case "release": releaseClickThrough(); break
+        case "help": if (primary) primary.settingsWindow.openHelp(); break
+        case "quit": Qt.quit(); break
+        }
+    }
+    readonly property string trayTip: primary ? "Arco · " + Logic.daySubtitle(primary.t.day, false, ui.lang) : "Arco"
+    onTrayTipChanged: tray.setToolTip(trayTip)
+
+    Connections {
+        target: tray
+        function onClicked() { mgr.setAllVisible(!mgr.anyVisible()) }
+        function onMenuRequested() { tray.setItems(mgr.trayItems()) }
+        function onTriggered(id) { mgr.handleTray(id) }
     }
 }

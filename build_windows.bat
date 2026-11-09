@@ -7,7 +7,7 @@ set "PY=%~dp0.venv\Scripts\python.exe"
 "%PY%" -m pip install pyinstaller || goto fail
 set "EXTRA="
 if exist google_oauth.json set "EXTRA=--add-data google_oauth.json;."
-"%PY%" -m PyInstaller --noconfirm --clean --windowed --name ArcoReloj --icon icon.ico --add-data "qml;qml" %EXTRA% arco.py || goto fail
+"%PY%" -m PyInstaller --noconfirm --clean --windowed --name ArcoReloj --icon icon.ico --add-data "qml;qml" --add-data "icon.ico;." %EXTRA% arco.py || goto fail
 REM La carpeta build\ es temporal y su .exe NO funciona: se borra para evitar confusiones.
 if exist build rmdir /s /q build
 echo.

@@ -88,7 +88,7 @@ jobs:
           } else {
             Write-Host "Sin secretos de Google: la sincronización solo ofrecerá carpeta."
           }
-          python -m PyInstaller --noconfirm --clean --windowed --name ArcoReloj --icon icon.ico --add-data "qml;qml" @extra arco.py
+          python -m PyInstaller --noconfirm --clean --windowed --name ArcoReloj --icon icon.ico --add-data "qml;qml" --add-data "icon.ico;." @extra arco.py
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Instalador (Inno Setup)

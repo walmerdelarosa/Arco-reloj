@@ -14,4 +14,4 @@
 Ejemplo: `dddd d 'de' MMMM | yyyy` → «domingo 8 de noviembre» y, debajo, «2026». Las letras que son códigos (como la «d» de «de») deben ir entre comillas simples.
 
 
-La misma tabla aparece en Ajustes → Texto y formato, junto a una vista previa.
+Los nombres de días y meses siguen el idioma de la app (Ajustes → Aplicación → Idioma). La misma tabla aparece en Ajustes → Texto → Códigos de formato, junto a una vista previa.

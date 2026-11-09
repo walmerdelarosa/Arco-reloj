@@ -5,7 +5,7 @@ Uso:
     python arco.py --backend opengl  # si el fondo transparente se ve negro
     python arco.py --selftest        # carga la interfaz, comprueba que no hay errores de QML y sale
 """
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 import argparse
 import os
@@ -23,6 +23,7 @@ from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from arco_sync import SyncService
+from arco_ui import Tray, UiPrefs, load_icon
 
 BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 QML_DIR = BASE / "qml"
@@ -138,14 +139,19 @@ def main() -> int:
     engine = QQmlApplicationEngine()
     plat = Platform()
     engine.rootContext().setContextProperty("plat", plat)
+    engine.rootContext().setContextProperty("appVersion", __version__)
     # Credenciales de Google: junto al programa o en %LOCALAPPDATA%\Arco
-    sync = SyncService([BASE, Path(sys.argv[0]).resolve().parent, LOG.parent], enabled=not args.selftest)
+    ui = UiPrefs()
+    engine.rootContext().setContextProperty("ui", ui)
+    tray = Tray(load_icon(QML_DIR / "icon.svg", BASE / "icon.ico"), on_error=_messages.append)
+    engine.rootContext().setContextProperty("tray", tray)
+    sync = SyncService([BASE, Path(sys.argv[0]).resolve().parent, LOG.parent], ui=ui, enabled=not args.selftest)
     engine.rootContext().setContextProperty("sync", sync)
     engine.load(QUrl.fromLocalFile(str(QML_DIR / "main.qml")))
     if not engine.rootObjects():
         detail = "\n".join(_messages[-15:]) or "Sin detalles."
-        QMessageBox.critical(None, "Arco no pudo iniciar",
-                             f"Error al cargar la interfaz.\n\n{detail}\n\nRegistro completo: {LOG}")
+        QMessageBox.critical(None, "Arco",
+                             f"Arco no pudo iniciar / Arco could not start.\n\n{detail}\n\n{LOG}")
         return 1
     if args.selftest:
         # Recorre estilos y ajustes, y deja correr la interfaz para que se evalúen enlaces y temporizadores.

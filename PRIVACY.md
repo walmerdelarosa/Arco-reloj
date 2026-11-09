@@ -1,14 +1,51 @@
-# Política de privacidad de Arco
+# Privacy Policy / Política de privacidad
+
+[English](#english) · [Español](#español)
+
+## English
+
+### Arco Privacy Policy
+
+Arco is an open-source desktop clock. It has no servers of its own and does not collect, sell or share personal data.
+
+### What data it uses
+
+- **Clock settings** (colors, styles, formats, workday hours). Stored on your computer.
+- **Optional Google sync.** If you sign in with your Google account, Arco stores a single file, `arco-config.json`, with those settings in the hidden application folder of your Google Drive. Only Arco can read it.
+- **Your Google email address**, only to show in the settings which account is signed in.
+
+### Google permissions
+
+Arco requests these scopes:
+
+- `drive.appdata`: read and write its own settings file. It does not give access to your documents, photos or any other Drive files.
+- `openid` and `email`: identify the signed-in account.
+
+The access grant is stored on your computer (the user's Windows registry) and is never sent to third parties. Clicking "Sign out" in Arco revokes it. You can also revoke it at any time from https://myaccount.google.com/permissions.
+
+Arco's use of information received from Google APIs adheres to the [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy), including the Limited Use requirements.
+
+### Deleting your data
+
+Uninstalling Arco removes the program; its local settings remain in the user's Windows registry. To delete the synced settings, in Google Drive go to **Settings → Manage apps → Arco → Options → Delete hidden app data**.
+
+### Contact
+
+For questions about this policy, open an issue in the project repository.
+
+## Español
+
+### Política de privacidad de Arco
 
 Arco es un reloj de escritorio de código abierto. No tiene servidores propios y no recopila, vende ni comparte datos personales.
 
-## Qué datos usa
+### Qué datos usa
 
 - **Configuración del reloj** (colores, estilos, formatos, horario de jornada). Se guarda en tu equipo.
 - **Sincronización opcional con Google.** Si inicias sesión con tu cuenta de Google, Arco guarda un único archivo, `arco-config.json`, con esa configuración en la carpeta oculta de la aplicación en tu Google Drive. Solo Arco puede leerlo.
 - **Tu dirección de correo de Google**, únicamente para mostrar en los ajustes con qué cuenta has iniciado sesión.
 
-## Permisos de Google
+### Permisos de Google
 
 Arco solicita estos permisos:
 
@@ -19,10 +56,10 @@ El permiso de acceso se guarda en tu equipo (registro de Windows del usuario) y 
 
 El uso de la información recibida de las API de Google se ajusta a la [Política de datos de usuario de los servicios de las API de Google](https://developers.google.com/terms/api-services-user-data-policy), incluidos los requisitos de uso limitado.
 
-## Eliminar tus datos
+### Eliminar tus datos
 
 Desinstalar Arco borra el programa y su configuración local queda en el registro de Windows del usuario. Para borrar la configuración sincronizada, en Google Drive ve a **Configuración → Administrar aplicaciones → Arco → Opciones → Eliminar datos ocultos de la aplicación**.
 
-## Contacto
+### Contacto
 
 Para preguntas sobre esta política, abre un *issue* en el repositorio del proyecto.

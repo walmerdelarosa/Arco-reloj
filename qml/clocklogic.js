@@ -81,13 +81,23 @@ function timeText(now, withSeconds, h12) {
     return hh + ":" + pad(M) + (withSeconds ? ":" + pad(S) : "");
 }
 
-function daySubtitle(day, withSeconds) {
+// Texto bajo la hora. lang: "es" (por defecto) o "en".
+function daySubtitle(day, withSeconds, lang) {
+    var en = lang === "en";
     if (day.work) {
-        if (day.before) return "jornada en " + fmt(day.untilStart, withSeconds);
-        if (day.after) return "jornada terminada";
-        return "quedan " + fmt(day.remaining, withSeconds) + " de jornada";
+        if (day.before) return (en ? "workday starts in " : "jornada en ") + fmt(day.untilStart, withSeconds);
+        if (day.after) return en ? "workday over" : "jornada terminada";
+        return en ? fmt(day.remaining, withSeconds) + " left in workday"
+                  : "quedan " + fmt(day.remaining, withSeconds) + " de jornada";
     }
-    return "quedan " + fmt(day.remaining, withSeconds) + " del día";
+    return en ? fmt(day.remaining, withSeconds) + " left today"
+              : "quedan " + fmt(day.remaining, withSeconds) + " del día";
+}
+
+// «Mes · quedan 3 d 4 h» / «Month · 3 d 4 h left»
+function remainingText(name, ms, withSeconds, lang) {
+    return lang === "en" ? name + " · " + fmt(ms, withSeconds) + " left"
+                         : name + " · quedan " + fmt(ms, withSeconds);
 }
 
 // Milisegundos hasta el próximo refresco necesario (alineado al segundo o minuto).
@@ -113,6 +123,14 @@ var dayShort = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 var monthNames = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
                   "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 var monthShort = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+var names = {
+    es: { day: dayNames, dayS: dayShort, month: monthNames, monthS: monthShort },
+    en: { day: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+          dayS: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+          month: ["January", "February", "March", "April", "May", "June", "July",
+                  "August", "September", "October", "November", "December"],
+          monthS: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] }
+};
 
 // Semana ISO 8601 (la semana 1 contiene el primer jueves del año).
 function isoWeek(now) {
@@ -130,7 +148,7 @@ function dayOfYear(now) {
     return Math.round((a - Date.UTC(now.getFullYear(), 0, 1)) / 86400000) + 1;
 }
 
-function token(now, c, n) {
+function token(now, c, n, N) {
     var H = now.getHours();
     switch (c) {
     case "H": return n >= 2 ? pad(H) : "" + H;
@@ -142,13 +160,13 @@ function token(now, c, n) {
     case "d":
         if (n === 1) return "" + now.getDate();
         if (n === 2) return pad(now.getDate());
-        if (n === 3) return dayShort[now.getDay()];
-        return dayNames[now.getDay()];
+        if (n === 3) return N.dayS[now.getDay()];
+        return N.day[now.getDay()];
     case "M":
         if (n === 1) return "" + (now.getMonth() + 1);
         if (n === 2) return pad(now.getMonth() + 1);
-        if (n === 3) return monthShort[now.getMonth()];
-        return monthNames[now.getMonth()];
+        if (n === 3) return N.monthS[now.getMonth()];
+        return N.month[now.getMonth()];
     case "y": return n <= 2 ? pad(now.getFullYear() % 100) : "" + now.getFullYear();
     case "w": return n >= 2 ? pad(isoWeek(now)) : "" + isoWeek(now);
     case "D": var j = dayOfYear(now); return n >= 3 ? ("00" + j).slice(-3) : "" + j;
@@ -161,8 +179,8 @@ var TOKENS = "HhmsAadMywDQ";
 
 // Formatea según códigos (H h m s A a d M y w D Q). 'texto' es literal, '' es una comilla
 // y | es un salto de línea.
-function formatDate(now, fmt) {
-    var out = "", i = 0, s = fmt || "";
+function formatDate(now, fmt, lang) {
+    var out = "", i = 0, s = fmt || "", N = names[lang === "en" ? "en" : "es"];
     while (i < s.length) {
         var c = s.charAt(i);
         if (c === "'") {
@@ -182,7 +200,7 @@ function formatDate(now, fmt) {
         if (TOKENS.indexOf(c) < 0) { out += c; i++; continue; }
         var k = i;
         while (k < s.length && s.charAt(k) === c) k++;
-        out += token(now, c, k - i);
+        out += token(now, c, k - i, N);
         i = k;
     }
     return out;
@@ -212,17 +230,40 @@ function fmtHM(minutes) {
 }
 
 var palettes = [
-    { name: "Aurora",      c: ["#8B5CF6", "#3B82F6", "#06B6D4", "#10B981", "#F59E0B", "#EF4444"] },
-    { name: "Atardecer",   c: ["#BE185D", "#F43F5E", "#FB7185", "#F97316", "#FBBF24", "#FEF3C7"] },
-    { name: "Océano",      c: ["#1D4ED8", "#0EA5E9", "#22D3EE", "#2DD4BF", "#5EEAD4", "#E0F2FE"] },
-    { name: "Pastel",      c: ["#C4B5FD", "#93C5FD", "#A5F3FC", "#A7F3D0", "#FDE68A", "#FECACA"] },
-    { name: "Monocromo",   c: ["#8A8A8A", "#A3A3A3", "#BDBDBD", "#D4D4D4", "#E5E5E5", "#FFFFFF"] },
-    { name: "OLED tenue",  c: ["#5B3FA8", "#2F5BA8", "#1F7F8C", "#1F7A55", "#9A6A10", "#9A2E2E"] }
+    { name: "Aurora",      en: "Aurora",      c: ["#8B5CF6", "#3B82F6", "#06B6D4", "#10B981", "#F59E0B", "#EF4444"] },
+    { name: "Atardecer", en: "Sunset",   c: ["#BE185D", "#F43F5E", "#FB7185", "#F97316", "#FBBF24", "#FEF3C7"] },
+    { name: "Océano", en: "Ocean",      c: ["#1D4ED8", "#0EA5E9", "#22D3EE", "#2DD4BF", "#5EEAD4", "#E0F2FE"] },
+    { name: "Pastel", en: "Pastel",      c: ["#C4B5FD", "#93C5FD", "#A5F3FC", "#A7F3D0", "#FDE68A", "#FECACA"] },
+    { name: "Monocromo", en: "Monochrome",   c: ["#8A8A8A", "#A3A3A3", "#BDBDBD", "#D4D4D4", "#E5E5E5", "#FFFFFF"] },
+    { name: "OLED tenue", en: "Dim OLED",  c: ["#5B3FA8", "#2F5BA8", "#1F7F8C", "#1F7A55", "#9A6A10", "#9A2E2E"] }
 ];
 
 var styles = ["Anillos", "Segmentos", "Fino", "Neón", "Bloque",
               "Barras horizontales", "Barras verticales", "Analógico"];
+var stylesEn = ["Rings", "Segments", "Thin", "Neon", "Block",
+                "Horizontal bars", "Vertical bars", "Analog"];
+function styleNames(lang) { return lang === "en" ? stylesEn : styles; }
+function paletteNames(lang) { return palettes.map(function (p) { return lang === "en" ? p.en : p.name; }); }
 
 var timePresets = ["HH:mm", "HH:mm:ss", "h:mm A", "h:mm:ss a", "HH'h'mm"];
 var datePresets = ["dddd d 'de' MMMM", "ddd d MMM yyyy", "dd/MM/yyyy", "d MMM | 'semana' w",
                    "MMMM yyyy", "'día' DDD 'de' yyyy"];
+var datePresetsEn = ["dddd, MMMM d", "ddd MMM d yyyy", "MM/dd/yyyy", "MMM d | 'week' w",
+                     "MMMM yyyy", "'day' DDD 'of' yyyy"];
+function datePresetsFor(lang) { return lang === "en" ? datePresetsEn : datePresets; }
+
+// ---------- Mezclador de transparencias ----------
+// El control general vale lo mismo que el canal más alto; al moverlo, todos los canales
+// se escalan en proporción (como un mezclador de volumen).
+function mixMaster(values) {
+    var m = 0;
+    for (var i = 0; i < values.length; i++) m = Math.max(m, values[i]);
+    return m;
+}
+function mixScale(values, master) {
+    var cur = mixMaster(values), t = Math.max(0, Math.min(1, master));
+    return values.map(function (v) {
+        if (cur < 0.001) return t;
+        return Math.round(Math.max(0, Math.min(1, v * t / cur)) * 1000) / 1000;
+    });
+}

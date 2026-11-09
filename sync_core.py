@@ -40,7 +40,15 @@ UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files"
 
 
 class SyncError(Exception):
-    """Error que se muestra tal cual al usuario."""
+    """Error que se muestra al usuario, en español y en inglés."""
+
+    def __init__(self, es: str, en: str = ""):
+        super().__init__(es)
+        self.es = es
+        self.en = en or es
+
+    def text(self, lang: str) -> str:
+        return self.en if lang == "en" else self.es
 
 
 class AuthExpired(SyncError):
@@ -109,7 +117,7 @@ def http(method: str, url: str, data: bytes | None = None, headers: dict | None 
     except urllib.error.HTTPError as e:
         return e.code, e.read()
     except (urllib.error.URLError, OSError) as e:
-        raise SyncError("Sin conexión con Google; se reintentará.") from e
+        raise SyncError("Sin conexión con Google; se reintentará.", "No connection to Google; will retry.") from e
 
 
 def _form(d: dict) -> bytes:
@@ -132,13 +140,13 @@ class FolderBackend:
 
     def read(self) -> dict | None:
         if not self.path.parent.is_dir():
-            raise SyncError("No se encuentra la carpeta de sincronización.")
+            raise SyncError("No se encuentra la carpeta de sincronización.", "The sync folder was not found.")
         try:
             return json.loads(self.path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             return None
         except (OSError, ValueError) as e:
-            raise SyncError(f"No se pudo leer {FILE_NAME}: {e}") from e
+            raise SyncError(f"No se pudo leer {FILE_NAME}: {e}", f"Could not read {FILE_NAME}: {e}") from e
 
     def write(self, doc: dict) -> None:
         tmp = self.path.with_name(FILE_NAME + ".tmp")
@@ -146,7 +154,7 @@ class FolderBackend:
             tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
             os.replace(tmp, self.path)
         except OSError as e:
-            raise SyncError(f"No se pudo escribir en la carpeta: {e}") from e
+            raise SyncError(f"No se pudo escribir en la carpeta: {e}", f"Could not write to the folder: {e}") from e
 
 
 class GoogleDriveBackend:
@@ -169,9 +177,10 @@ class GoogleDriveBackend:
             "client_id": self.client_id, "client_secret": self.client_secret,
             "refresh_token": self.refresh_token, "grant_type": "refresh_token"}), FORM)
         if status in (400, 401):
-            raise AuthExpired("La sesión de Google caducó o se revocó. Vuelve a iniciar sesión.")
+            raise AuthExpired("La sesión de Google caducó o se revocó. Vuelve a iniciar sesión.",
+                              "Your Google session expired or was revoked. Sign in again.")
         if status != 200:
-            raise SyncError(f"Google rechazó la renovación de la sesión ({status}).")
+            raise SyncError(f"Google rechazó la renovación de la sesión ({status}).", f"Google refused to renew the session ({status}).")
         j = json.loads(body)
         self._access = j["access_token"]
         self._expiry = time.time() + float(j.get("expires_in", 3600))
@@ -190,12 +199,13 @@ class GoogleDriveBackend:
         return status, body
 
     @staticmethod
-    def _check(status: int, body: bytes, what: str) -> None:
+    def _check(status: int, body: bytes, what: tuple) -> None:
         if 200 <= status < 300:
             return
         if status == 403 and b"accessNotConfigured" in body:
-            raise SyncError("La API de Google Drive no está activada en el proyecto de Google Cloud.")
-        raise SyncError(f"Google Drive respondió {status} al {what}.")
+            raise SyncError("La API de Google Drive no está activada en el proyecto de Google Cloud.",
+                            "The Google Drive API is not enabled in the Google Cloud project.")
+        raise SyncError(f"Google Drive respondió {status} al {what[0]}.", f"Google Drive returned {status} while trying to {what[1]}.")
 
     def _find(self) -> str:
         if self._file_id:
@@ -207,7 +217,7 @@ class GoogleDriveBackend:
             "orderBy": "modifiedTime desc",
             "pageSize": "10"})
         status, body = self._api("GET", f"{FILES_URL}?{q}")
-        self._check(status, body, "buscar la configuración")
+        self._check(status, body, ("buscar la configuración", "find the settings"))
         files = json.loads(body).get("files", [])
         self._file_id = files[0]["id"] if files else ""
         return self._file_id
@@ -223,7 +233,7 @@ class GoogleDriveBackend:
         if status == 404:
             self._file_id = ""
             return None
-        self._check(status, body, "descargar la configuración")
+        self._check(status, body, ("descargar la configuración", "download the settings"))
         try:
             return json.loads(body.decode("utf-8"))
         except ValueError:
@@ -235,7 +245,7 @@ class GoogleDriveBackend:
         if fid:
             status, body = self._api("PATCH", f"{UPLOAD_URL}/{fid}?uploadType=media", data, "application/json")
             if status != 404:
-                self._check(status, body, "subir la configuración")
+                self._check(status, body, ("subir la configuración", "upload the settings"))
                 return
             self._file_id = ""
         b = "arco" + secrets.token_hex(12)
@@ -244,7 +254,7 @@ class GoogleDriveBackend:
                    f"--{b}\r\nContent-Type: application/json\r\n\r\n").encode("utf-8") + data + f"\r\n--{b}--\r\n".encode()
         status, body = self._api("POST", f"{UPLOAD_URL}?uploadType=multipart&fields=id", payload,
                                  f"multipart/related; boundary={b}")
-        self._check(status, body, "crear la configuración")
+        self._check(status, body, ("crear la configuración", "create the settings"))
         self._file_id = json.loads(body)["id"]
 
 
@@ -289,7 +299,7 @@ _DONE_PAGE = """<!doctype html><meta charset="utf-8"><title>Arco</title>
 
 def google_login(client_id: str, client_secret: str, open_url: Callable[[str], object],
                  cancelled: Callable[[], bool] = lambda: False, timeout: float = 300,
-                 transport: Callable = http) -> tuple[str, str]:
+                 transport: Callable = http, lang: str = "es") -> tuple[str, str]:
     """Inicio de sesión de app de escritorio (OAuth 2.0 con PKCE y redirección a 127.0.0.1).
 
     Abre el navegador, espera la respuesta en un puerto local y devuelve (refresh_token, email).
@@ -313,9 +323,14 @@ def google_login(client_id: str, client_secret: str, open_url: Callable[[str], o
             else:
                 result["error"] = qs.get("error", ["cancelado"])[0]
             ok = "code" in result
-            page = _DONE_PAGE.format(
-                title="Listo" if ok else "No se completó el inicio de sesión",
-                text="Ya puedes cerrar esta pestaña y volver a Arco." if ok else "Puedes cerrar esta pestaña e intentarlo de nuevo.")
+            en = lang == "en"
+            if ok:
+                title, text = ("Done", "You can close this tab and go back to Arco.") if en else \
+                              ("Listo", "Ya puedes cerrar esta pestaña y volver a Arco.")
+            else:
+                title, text = ("Sign-in not completed", "You can close this tab and try again.") if en else \
+                              ("No se completó el inicio de sesión", "Puedes cerrar esta pestaña e intentarlo de nuevo.")
+            page = _DONE_PAGE.format(title=title, text=text)
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -339,18 +354,19 @@ def google_login(client_id: str, client_secret: str, open_url: Callable[[str], o
         server.server_close()
 
     if "code" not in result:
+        detail = f" ({result['error']})." if result.get("error") else "."
         if cancelled() or not result:
-            raise SyncError("Inicio de sesión cancelado.")
-        raise SyncError("Google no autorizó el acceso" + (f" ({result['error']})." if result.get("error") else "."))
+            raise SyncError("Inicio de sesión cancelado.", "Sign-in cancelled.")
+        raise SyncError("Google no autorizó el acceso" + detail, "Google did not grant access" + detail)
 
     status, body = transport("POST", TOKEN_URL, _form({
         "code": result["code"], "client_id": client_id, "client_secret": client_secret,
         "redirect_uri": redirect, "grant_type": "authorization_code", "code_verifier": verifier}), FORM)
     if status != 200:
-        raise SyncError(f"Google rechazó el inicio de sesión ({status}).")
+        raise SyncError(f"Google rechazó el inicio de sesión ({status}).", f"Google rejected the sign-in ({status}).")
     j = json.loads(body)
     if not j.get("refresh_token"):
-        raise SyncError("Google no devolvió un permiso duradero; vuelve a intentarlo.")
+        raise SyncError("Google no devolvió un permiso duradero; vuelve a intentarlo.", "Google did not return a long-lived grant; please try again.")
     return j["refresh_token"], _email_from_id_token(j.get("id_token", ""))
 
 

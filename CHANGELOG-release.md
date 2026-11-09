@@ -1,12 +1,19 @@
-**Instalador:** `ArcoReloj-…-setup.exe` · **Portátil:** `ArcoReloj-…-portable.zip`
+**Installer / Instalador:** `ArcoReloj-…-setup.exe` · **Portable / Portátil:** `ArcoReloj-…-portable.zip`
+
+### What's new
+- Tray icon menu now works in the installed app (right-click the icon)
+- English interface (Settings → App → Language)
+- New settings window with light and dark themes
+- Each style remembers its own colors, opacity and size
+- Overall opacity works like a volume mixer
+- Related settings grouped together; the index highlights where you are while scrolling
 
 ### Novedades
-- Sincronización de la configuración entre equipos (cuenta de Google o carpeta sincronizada)
-- Varios relojes, uno por monitor
-- Estilos nuevos: barras horizontales, barras verticales y analógico
-- Formato de hora y fecha personalizable
-- Transparencia por elemento y radio del centro ajustable
-- Horario de jornada con minutos exactos
-- Ajustes reorganizados por secciones
+- El menú del icono de la bandeja ya funciona en la app instalada (clic derecho en el icono)
+- Interfaz en inglés (Ajustes → Aplicación → Idioma)
+- Ventana de ajustes nueva con tema claro y oscuro
+- Cada estilo recuerda sus colores, transparencias y tamaño
+- La transparencia general funciona como un mezclador de volumen
+- Ajustes relacionados agrupados; el índice resalta la sección visible al desplazarte
 
-La configuración de versiones anteriores se conserva.
+Settings from earlier versions are kept. / La configuración de versiones anteriores se conserva.

@@ -1,37 +1,39 @@
-# Inicio de sesión con Google
+# Sign in with Google
 
-La opción **Cuenta de Google** necesita un ID de cliente OAuth propio del proyecto. Sin él, la app funciona igual y la sincronización ofrece solo la carpeta sincronizada.
+[Español](google-sync.es.md)
 
-Arco usa únicamente el permiso `drive.appdata`: guarda `arco-config.json` en una carpeta oculta del Drive del usuario que solo Arco puede leer. Google lo clasifica como *no sensible*, así que no hace falta pasar la verificación de la app.
+The **Google account** sync option needs an OAuth client ID owned by the project. Without it, the app works the same and sync offers only the synced-folder option.
 
-## 1. Crear las credenciales
+Arco requests only the `drive.appdata` scope: it stores `arco-config.json` in a hidden app folder in the user's Drive that only Arco can read. Google classifies this scope as *non-sensitive*, so the app does not need to go through verification.
 
-1. Entra en [Google Cloud Console](https://console.cloud.google.com/) y crea un proyecto (por ejemplo, «Arco»).
-2. **APIs y servicios → Biblioteca**: activa **Google Drive API**.
-3. **Google Auth Platform → Branding**: nombre de la app, correo de soporte y correo de contacto.
-4. **Público**: tipo *Externo*. Pulsa **Publicar app** para pasarla a *En producción*.
-   En modo *Prueba* solo pueden entrar los usuarios de prueba que añadas, y la sesión caduca a los 7 días.
-5. **Acceso a datos**: añade los permisos `openid`, `.../auth/userinfo.email` y `.../auth/drive.appdata`.
-6. **Clientes → Crear cliente**: tipo **App de escritorio**. Descarga el JSON.
+## 1. Create the credentials
 
-En las apps de escritorio el «secreto del cliente» no es confidencial (viaja dentro del programa); Google lo trata así. Aun así, no lo subas al repositorio.
+1. Open [Google Cloud Console](https://console.cloud.google.com/) and create a project (for example, "Arco").
+2. **APIs & Services → Library**: enable **Google Drive API**.
+3. **Google Auth Platform → Branding**: app name and support email. To publish, also add the home page (`https://github.com/<user>/Arco-reloj`), the privacy policy (`…/blob/main/PRIVACY.md`) and `github.com` as an authorized domain. Do not upload a logo: it makes verification mandatory.
+4. **Audience**: *External*. Click **Publish app** to move it to *In production*.
+   In *Testing*, only the test users you add can sign in, and sessions expire after 7 days.
+5. **Data access**: add the scopes `openid`, `.../auth/userinfo.email` and `.../auth/drive.appdata`.
+6. **Clients → Create client**: type **Desktop app**. Download the JSON.
 
-## 2. Usarlas
+For desktop apps the "client secret" is not confidential (it ships inside the program), and Google treats it that way. Still, do not commit it.
 
-**En los releases de GitHub.** En el repositorio, *Settings → Secrets and variables → Actions*, crea:
+## 2. Use them
 
-| Secreto | Valor |
+**In GitHub releases.** In the repository, go to *Settings → Secrets and variables → Actions* and create:
+
+| Secret | Value |
 |---|---|
-| `GOOGLE_CLIENT_ID` | `client_id` del JSON |
-| `GOOGLE_CLIENT_SECRET` | `client_secret` del JSON |
+| `GOOGLE_CLIENT_ID` | `client_id` from the JSON |
+| `GOOGLE_CLIENT_SECRET` | `client_secret` from the JSON |
 
-El flujo *Release Windows* los incluye en el instalador.
+The *Release Windows* workflow bundles them into the installer.
 
-**En local.** Guarda el JSON descargado como `google_oauth.json` junto a `arco.py` (está en `.gitignore`). `build_windows.bat` y `build_installer.bat` lo incluyen si existe. También sirven las variables de entorno `ARCO_GOOGLE_CLIENT_ID` y `ARCO_GOOGLE_CLIENT_SECRET`.
+**Locally.** Save the downloaded JSON as `google_oauth.json` next to `arco.py` (it is in `.gitignore`). `build_windows.bat` and `build_installer.bat` include it when present. The environment variables `ARCO_GOOGLE_CLIENT_ID` and `ARCO_GOOGLE_CLIENT_SECRET` also work.
 
-## Cómo funciona
+## How it works
 
-- Inicio de sesión de app de escritorio: OAuth 2.0 con PKCE y redirección a `127.0.0.1`. Se abre el navegador; Arco no ve la contraseña.
-- El token de renovación se guarda en el registro de Windows del usuario (`HKCU\Software\Arco\Arco Reloj\sync`). «Cerrar sesión» lo revoca.
-- Los cambios se suben unos segundos después de hacerlos y la nube se consulta cada 3 minutos. Si dos equipos cambian a la vez, gana el cambio más reciente.
-- Las posiciones de los relojes no se sincronizan.
+- Desktop sign-in: OAuth 2.0 with PKCE and a `127.0.0.1` redirect. The browser opens; Arco never sees the password.
+- The refresh token is stored in the user's Windows registry (`HKCU\Software\Arco\Arco Reloj\sync`). "Sign out" revokes it.
+- Changes are uploaded a few seconds after you make them and the cloud copy is checked every 3 minutes. If two devices change at the same time, the most recent change wins.
+- Clock positions are not synced.
