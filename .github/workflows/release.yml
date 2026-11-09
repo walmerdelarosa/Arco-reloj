@@ -1,24 +1,39 @@
-# Compila Arco para Windows y publica el instalador en un release de GitHub.
+# Compila Arco para Windows y adjunta el instalador a un release de GitHub.
 #
-# Se ejecuta al subir una etiqueta de versión:
-#   git tag v1.1.0 && git push origin v1.1.0
-# También se puede lanzar a mano (pestaña Actions → «Release Windows» → Run workflow);
-# en ese caso solo deja los archivos como artefactos, sin crear release.
+# Se ejecuta:
+#   - al publicar un release desde la web (Releases → Draft a new release),
+#   - al subir una etiqueta vX.Y.Z (crea el release si no existe),
+#   - a mano: Actions → «Release Windows» → Run workflow, indicando la etiqueta
+#     (sirve para añadir el instalador a un release ya publicado).
 name: Release Windows
 
 on:
+  release:
+    types: [published]
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Etiqueta del release (por ejemplo v1.2.0)"
+        required: true
 
 permissions:
   contents: write
+
+# Publicar un release también crea la etiqueta: evita compilar dos veces.
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A mano se compila la rama elegida (normalmente main) y se adjunta al release indicado.
+          ref: ${{ github.event.release.tag_name || github.ref }}
 
       - uses: actions/setup-python@v5
         with:
@@ -32,10 +47,11 @@ jobs:
         id: ver
         shell: pwsh
         run: |
-          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") }
-          else { $v = (Select-String -Path arco.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value }
+          $tag = "${{ github.event.release.tag_name || inputs.tag || github.ref_name }}"
+          $v = $tag.TrimStart("v")
+          "tag=$tag" >> $env:GITHUB_OUTPUT
           "version=$v" >> $env:GITHUB_OUTPUT
-          Write-Host "Versión: $v"
+          Write-Host "Etiqueta: $tag · versión: $v"
 
       - name: Dependencias
         run: |
@@ -96,12 +112,12 @@ jobs:
             dist/ArcoReloj-*-setup.exe
             dist/ArcoReloj-*-portable.zip
 
-      - name: Publicar release
-        if: github.ref_type == 'tag'
+      - name: Adjuntar al release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.tag }}
           name: Arco ${{ steps.ver.outputs.version }}
-          body_path: CHANGELOG-release.md
+          body_path: ${{ github.event_name == 'push' && 'CHANGELOG-release.md' || '' }}
           files: |
             dist/ArcoReloj-*-setup.exe
             dist/ArcoReloj-*-portable.zip
