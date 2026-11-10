@@ -5,7 +5,7 @@ Uso:
     python arco.py --backend opengl  # si el fondo transparente se ve negro
     python arco.py --selftest        # carga la interfaz, comprueba que no hay errores de QML y sale
 """
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 import argparse
 import os
@@ -28,6 +28,7 @@ from arco_ui import Tray, UiPrefs, load_icon
 BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 QML_DIR = BASE / "qml"
 RUN_KEY = r"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run"
+RUN_KEY_ALL = r"HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"   # instalación «para todos»
 APP_ID = "ArcoReloj"
 LOG = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Arco" / "arco.log"
 _messages: list[str] = []
@@ -90,15 +91,22 @@ class Platform(QObject):
         return sys.platform == "win32"
 
     @Slot(result=bool)
+    def autostartForAll(self) -> bool:
+        """True si el instalador activó el inicio automático para todos los usuarios (HKLM)."""
+        if sys.platform != "win32":
+            return False
+        return QSettings(RUN_KEY_ALL, QSettings.NativeFormat).contains(APP_ID)
+
+    @Slot(result=bool)
     def autostartEnabled(self) -> bool:
         if sys.platform != "win32":
             return False
-        return QSettings(RUN_KEY, QSettings.NativeFormat).contains(APP_ID)
+        return self.autostartForAll() or QSettings(RUN_KEY, QSettings.NativeFormat).contains(APP_ID)
 
     @Slot(bool)
     def setAutostart(self, on: bool) -> None:
-        if sys.platform != "win32":
-            return
+        if sys.platform != "win32" or self.autostartForAll():
+            return                                  # lo controla el instalador (requiere administrador)
         s = QSettings(RUN_KEY, QSettings.NativeFormat)
         if on:
             s.setValue(APP_ID, self._command())

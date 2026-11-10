@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 *.spec
 google_oauth.json
+version_info.txt

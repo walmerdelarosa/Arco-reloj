@@ -738,6 +738,17 @@ ApplicationWindow {
                                 }
                             }
                         }
+                        SRow {
+                            title: sw.tr("Mostrar el avance como", "Show progress as")
+                            desc: sw.tr("Porcentaje o en las unidades de cada anillo: días del año, mes y semana; horas del día o de la jornada; minutos de la hora; segundos del minuto. Se ve en las barras y al pasar el ratón por un anillo.",
+                                        "Percentage or each ring's own units: days of the year, month and week; hours of the day or workday; minutes of the hour; seconds of the minute. Shown on bars and when hovering a ring.")
+                            ComboBox {
+                                Layout.preferredWidth: 240
+                                model: Logic.valueModeNames(ui.lang)
+                                currentIndex: sw.conf.valueMode
+                                onActivated: (i) => sw.conf.valueMode = i
+                            }
+                        }
                         Repeater {
                             model: sw.clock ? sw.clock.ringDefs : []
                             delegate: SRow {
@@ -759,7 +770,8 @@ ApplicationWindow {
                         SRow {
                             visible: !!sw.clock && !sw.clock.radial
                             title: sw.tr("Etiquetas de las barras", "Bar labels")
-                            desc: sw.tr("Nombres y porcentajes junto a cada barra.", "Names and percentages next to each bar.")
+                            desc: sw.tr("Nombres y valores junto a cada barra.", "Names and values next to each bar.")
+                            Swatch { key: "cLabels" }
                             SliderCtl { key: "oLabels"; sliderWidth: 150 }
                         }
                         SRow {
@@ -810,7 +822,7 @@ ApplicationWindow {
                         }
                         SRow {
                             title: sw.tr("Marcas de la esfera", "Dial marks")
-                            desc: sw.tr("Usan el color del texto.", "They use the text color.")
+                            desc: sw.tr("Usan el color de la hora.", "They use the time color.")
                             SliderCtl { key: "oTicks"; sliderWidth: 150 }
                         }
                     }
@@ -832,8 +844,13 @@ ApplicationWindow {
                         }
                         SRow {
                             enabled: sw.conf.showText
-                            title: sw.tr("Color", "Color")
-                            Swatch { key: "cText" }
+                            title: sw.tr("Mismo color para todo el texto", "Same color for all text")
+                            desc: sw.tr("Copia el color de la hora a la fecha, el tiempo restante y las etiquetas de las barras. Cada uno se puede cambiar en su sección.",
+                                        "Copies the time color to the date, time remaining and bar labels. Each one can be changed in its own section.")
+                            Button {
+                                text: sw.tr("Aplicar", "Apply")
+                                onClicked: { sw.conf.cDate = sw.conf.cText; sw.conf.cSub = sw.conf.cText; sw.conf.cLabels = sw.conf.cText }
+                            }
                         }
                         SRow {
                             enabled: sw.conf.showText
@@ -855,7 +872,9 @@ ApplicationWindow {
                         FormatRow { key: "timeFormat"; presets: Logic.timePresets; enabled: sw.conf.showTime }
                         SRow {
                             enabled: sw.conf.showTime
-                            title: sw.tr("Transparencia", "Opacity")
+                            title: sw.tr("Color y transparencia", "Color and opacity")
+                            desc: sw.tr("Las marcas de la esfera analógica también usan este color.", "The analog dial marks use this color too.")
+                            Swatch { key: "cText" }
                             SliderCtl { key: "oTime"; sliderWidth: 150 }
                         }
                     }
@@ -873,7 +892,8 @@ ApplicationWindow {
                         FormatRow { key: "dateFormat"; presets: Logic.datePresetsFor(ui.lang); enabled: sw.conf.showDate }
                         SRow {
                             enabled: sw.conf.showDate
-                            title: sw.tr("Transparencia", "Opacity")
+                            title: sw.tr("Color y transparencia", "Color and opacity")
+                            Swatch { key: "cDate" }
                             SliderCtl { key: "oDate"; sliderWidth: 150 }
                         }
                     }
@@ -897,7 +917,8 @@ ApplicationWindow {
                         }
                         SRow {
                             enabled: sw.conf.showSub
-                            title: sw.tr("Transparencia", "Opacity")
+                            title: sw.tr("Color y transparencia", "Color and opacity")
+                            Swatch { key: "cSub" }
                             SliderCtl { key: "oSub"; sliderWidth: 150 }
                         }
                     }
@@ -1076,8 +1097,12 @@ ApplicationWindow {
                         SRow {
                             visible: plat.autostartSupported()
                             title: sw.tr("Iniciar con Windows", "Start with Windows")
-                            desc: sw.tr("Común a todos los relojes.", "Shared by all clocks.")
+                            desc: plat.autostartForAll()
+                                  ? sw.tr("Activado para todos los usuarios desde el instalador. Para quitarlo, desactívalo en Administrador de tareas → Aplicaciones de arranque.",
+                                          "Turned on for all users by the installer. To turn it off, use Task Manager → Startup apps.")
+                                  : sw.tr("Común a todos los relojes.", "Shared by all clocks.")
                             Toggle {
+                                enabled: !plat.autostartForAll()
                                 checked: plat.autostartEnabled()
                                 onToggled: plat.setAutostart(checked)
                             }
@@ -1092,8 +1117,8 @@ ApplicationWindow {
                                                : sw.tr("El anillo «Día» mide el día completo", "The Day ring tracks the whole day")
                         SRow {
                             title: sw.tr("El anillo «Día» mide solo mi jornada", "The Day ring tracks only my workday")
-                            desc: sw.tr("Antes de empezar indica cuánto falta; después, «jornada terminada».",
-                                        "Before it starts it shows how long until it begins; afterwards, “workday over”.")
+                            desc: sw.tr("Antes de empezar indica cuánto falta; al terminar, cuánto falta para la del día siguiente.",
+                                        "Before it starts it shows how long until it begins; once it ends, how long until the next one.")
                             Toggle { key: "workMode" }
                         }
                         SRow {

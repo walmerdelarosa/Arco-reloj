@@ -9,6 +9,7 @@ A desktop clock that shows how much of the year, month, week, day, hour and minu
 ## Features
 
 - Rings for year, month, week, day (or your workday), hour and minute
+- Progress as percentage or in units (18.5/24 h, 25/60 min, 20/60 s…)
 - 8 styles: rings, segments, thin, neon, block, horizontal bars, vertical bars and analog
 - One clock per monitor, each with its own settings
 - Separate colors, opacity and size for each style
@@ -20,9 +21,9 @@ A desktop clock that shows how much of the year, month, week, day, hour and minu
 
 ## Download
 
-Get the installer from [Releases](../../releases/latest). It runs on Windows 10 and 11 and needs neither Python nor administrator rights.
+Get the installer from [Releases](../../releases/latest). It runs on Windows 10 and 11 and does not need Python. Install it just for you (no administrator rights) or for every user on the computer.
 
-Windows may show a SmartScreen warning because the installer is not signed: **More info → Run anyway**.
+If the installer is not signed, Windows may show a SmartScreen warning: **More info → Run anyway**. See [code signing](docs/code-signing.es.md) (Spanish).
 
 ## Usage
 

@@ -103,8 +103,9 @@ Item {
         w.conf.showDate = true
         w.conf.showWeek = true
         w.conf.workMode = true
-        for (let s = 0; s < Logic.styles.length; s++) {
-            w.conf.style = s
+        for (let s = 0; s < Logic.styles.length * 3; s++) {
+            w.conf.valueMode = Math.floor(s / Logic.styles.length)     // porcentaje, unidades y ambos
+            w.conf.style = s % Logic.styles.length
             w.updateHover(Qt.point(w.dialW / 2 + 1, w.dialH - w.pad - 2))
             w.updateHover(Qt.point(w.dialW / 2 + w.rOuter * 0.9, w.dialH / 2))
             w.conf.showText = !w.conf.showText
@@ -113,6 +114,7 @@ Item {
         w.setMaster(0.5)
         if (Math.abs(w.master - 0.5) > 0.01) console.error("selftest-error: mezclador " + w.master)
         w.conf.style = 0
+        w.conf.valueMode = 0
         w.hoverIdx = -1
         if (tray.check(w.menuItems()) <= 0) console.error("selftest-error: menú del reloj vacío")
         if (tray.check(trayItems()) <= 0) console.error("selftest-error: menú de la bandeja vacío")

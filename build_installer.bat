@@ -12,7 +12,8 @@ set "VER=%VER:"=%"
 "%PY%" -m pip install pyinstaller || goto fail
 set "EXTRA="
 if exist google_oauth.json set "EXTRA=--add-data google_oauth.json;."
-"%PY%" -m PyInstaller --noconfirm --clean --windowed --name ArcoReloj --icon icon.ico --add-data "qml;qml" --add-data "icon.ico;." %EXTRA% arco.py || goto fail
+"%PY%" installer\version_info.py %VER% version_info.txt || goto fail
+"%PY%" -m PyInstaller --noconfirm --clean --windowed --noupx --name ArcoReloj --icon icon.ico --version-file version_info.txt --add-data "qml;qml" --add-data "icon.ico;." %EXTRA% arco.py || goto fail
 if exist build rmdir /s /q build
 
 set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
