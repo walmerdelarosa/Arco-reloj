@@ -9,6 +9,10 @@
 #ifndef MyAppVersion
   #define MyAppVersion "1.4.0"
 #endif
+; Windows solo acepta números en la versión del archivo (1.4.0, no V1.4.0 ni 1.4.0-beta).
+#ifndef MyNumVersion
+  #define MyNumVersion "1.4.0"
+#endif
 #define MyAppName "Arco Reloj"
 #define MyAppExe "ArcoReloj.exe"
 #define MyRunKeyName "ArcoReloj"
@@ -20,7 +24,7 @@ AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher=Arco
 AppPublisherURL=https://github.com/walmerdelarosa/Arco-reloj
-VersionInfoVersion={#MyAppVersion}
+VersionInfoVersion={#MyNumVersion}
 VersionInfoProductName={#MyAppName}
 VersionInfoDescription={#MyAppName} Setup
 VersionInfoCompany=Arco

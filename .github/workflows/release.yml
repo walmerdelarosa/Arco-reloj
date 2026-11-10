@@ -48,10 +48,14 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.event.release.tag_name || inputs.tag || github.ref_name }}"
-          $v = $tag.TrimStart("v")
+          $v = $tag.TrimStart("v", "V")
+          # Versión solo numérica (1.4.0) para los metadatos de Windows: quita sufijos como -beta.
+          $num = ([regex]::Match($v, '^\d+(\.\d+){0,3}')).Value
+          if (-not $num) { $num = "0.0.0" }
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "version=$v" >> $env:GITHUB_OUTPUT
-          Write-Host "Etiqueta: $tag · versión: $v"
+          "num=$num" >> $env:GITHUB_OUTPUT
+          Write-Host "Etiqueta: $tag · versión: $v ($num)"
 
       - name: Dependencias
         run: |
@@ -90,7 +94,7 @@ jobs:
           }
           # Metadatos de versión y sin UPX: los ejecutables comprimidos o sin datos del producto
           # dan más falsos positivos en los antivirus.
-          python installer/version_info.py "${{ steps.ver.outputs.version }}" version_info.txt
+          python installer/version_info.py "${{ steps.ver.outputs.num }}" version_info.txt
           python -m PyInstaller --noconfirm --clean --windowed --noupx --name ArcoReloj --icon icon.ico --version-file version_info.txt --add-data "qml;qml" --add-data "icon.ico;." @extra arco.py
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
@@ -116,7 +120,7 @@ jobs:
           if (-not (Test-Path $iscc)) {
             choco install innosetup -y --no-progress
           }
-          $isccArgs = @("/DMyAppVersion=${{ steps.ver.outputs.version }}")
+          $isccArgs = @("/DMyAppVersion=${{ steps.ver.outputs.version }}", "/DMyNumVersion=${{ steps.ver.outputs.num }}")
           if ($env:SIGN_PFX_BASE64 -or $env:SIGN_CERT_SHA1) {
             # Inno firma el instalador y el desinstalador con installer\sign.ps1 ($f = archivo).
             $script = (Resolve-Path installer\sign.ps1).Path
