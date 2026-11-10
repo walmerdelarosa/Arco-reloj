@@ -48,7 +48,11 @@ Window {
         property bool showBackdrop: true
         property real backdropOpacity: 0.35
         property string cBack: "#000000"
-        property string cText: "#FFFFFF"
+        property string cText: "#FFFFFF"          // hora (y marcas de la esfera analógica)
+        property string cDate: "#FFFFFF"          // fecha
+        property string cSub: "#FFFFFF"           // tiempo restante / mensaje de jornada
+        property string cLabels: "#FFFFFF"        // nombres y valores de las barras
+        property int valueMode: 0                 // 0 = porcentaje, 1 = unidades (18.5/24 h), 2 = ambos
         property bool hoverReveal: true
         // transparencias individuales
         property real oYear: 1
@@ -101,7 +105,7 @@ Window {
         "cfgVersion", "showYear", "showMonth", "showWeek", "showDay", "showHour", "showMinute",
         "cYear", "cMonth", "cWeek", "cDay", "cHour", "cMinute", "paletteIndex",
         "style", "perStyle", "styleProfiles", "dialSize", "contentOpacity", "thickScale", "centerRatio", "textScale", "trackOpacity",
-        "showBackdrop", "backdropOpacity", "cBack", "cText", "hoverReveal",
+        "showBackdrop", "backdropOpacity", "cBack", "cText", "cDate", "cSub", "cLabels", "valueMode", "hoverReveal",
         "oYear", "oMonth", "oWeek", "oDay", "oHour", "oMinute", "oTime", "oDate", "oSub", "oLabels", "oTicks", "oHands",
         "showText", "showTime", "timeFormat", "showDate", "dateFormat", "showSub", "showSeconds", "h12", "smooth",
         "secondHand", "cHands", "cSecond", "workMode", "workStart", "workEnd",
@@ -191,8 +195,24 @@ Window {
     readonly property real rowH: ds * 0.085 * cfg.thickScale                  // alto de cada barra horizontal
     readonly property real colW: ds * 0.12 * cfg.thickScale                   // ancho de cada columna vertical
     readonly property real labelW: rowH * 1.9
-    readonly property real pctW: rowH * 1.7
+    // Ancho reservado para el valor de cada barra: el del texto más largo posible, para que no salte.
+    readonly property string pctSample: {
+        let best = "100 %"
+        for (let i = 0; i < activeRings.length; i++) {
+            const smp = Logic.progressSample(activeRings[i].key, t[activeRings[i].key], cfg.valueMode, false)
+            if (smp.length > best.length) best = smp
+        }
+        return best
+    }
+    TextMetrics {
+        id: pctMetrics
+        font.pixelSize: Math.max(6, win.rowH * 0.40)
+        font.features: ({ "tnum": 1 })
+        text: win.pctSample
+    }
+    readonly property real pctW: Math.max(rowH * 1.7, pctMetrics.advanceWidth + rowH * 0.3)
     readonly property real colLabelH: colW * 0.45
+    readonly property real colValueH: colLabelH * (cfg.valueMode === 0 ? 1 : cfg.valueMode === 1 ? 1.8 : 2.6)
     // En los estilos de barras el texto no cambia al pasar el ratón, para que la ventana no salte de tamaño.
     readonly property bool textShown: cfg.showText || (analog && hoverIdx >= 0)
     readonly property real textH: (!radial && textShown) ? textCol.height + (hBars ? rowH : colW) * 0.35 : 0
@@ -236,7 +256,7 @@ Window {
     // Al cambiar de estilo se guarda el aspecto del estilo anterior y se recupera el del nuevo.
     readonly property var styleKeys: [
         "dialSize", "thickScale", "centerRatio", "textScale", "trackOpacity", "hoverReveal",
-        "showBackdrop", "backdropOpacity", "cBack", "cText", "paletteIndex",
+        "showBackdrop", "backdropOpacity", "cBack", "cText", "cDate", "cSub", "cLabels", "paletteIndex",
         "cYear", "cMonth", "cWeek", "cDay", "cHour", "cMinute",
         "oYear", "oMonth", "oWeek", "oDay", "oHour", "oMinute", "oTime", "oDate", "oSub", "oLabels",
         "oTicks", "oHands", "cHands", "cSecond"
@@ -341,6 +361,17 @@ Window {
             cfg.contentOpacity = 1
             cfg.cfgVersion = 3
         }
+        if (cfg.cfgVersion < 4) {          // 1.3 → 1.4: fecha, tiempo restante y barras tienen color propio
+            cfg.cDate = cfg.cText; cfg.cSub = cfg.cText; cfg.cLabels = cfg.cText
+            const prof = profiles()
+            Object.keys(prof).forEach(k => {
+                const p = prof[k]
+                if (p && typeof p.cText === "string")
+                    ["cDate", "cSub", "cLabels"].forEach(c => { if (p[c] === undefined) p[c] = p.cText })
+            })
+            cfg.styleProfiles = JSON.stringify(prof)
+            cfg.cfgVersion = 4
+        }
     }
 
     property bool ready: false
@@ -440,7 +471,7 @@ Window {
                     width: win.labelW
                     anchors.verticalCenter: parent.verticalCenter
                     text: win.ringName(modelData)
-                    color: cfg.cText
+                    color: cfg.cLabels
                     opacity: cfg.oLabels
                     font.pixelSize: Math.max(6, win.rowH * 0.40)
                     elide: Text.ElideRight
@@ -461,8 +492,8 @@ Window {
                     width: win.pctW
                     anchors.verticalCenter: parent.verticalCenter
                     horizontalAlignment: Text.AlignRight
-                    text: Math.floor(win.t[modelData.key].p * 100) + " %"
-                    color: cfg.cText
+                    text: Logic.progressText(modelData.key, win.t[modelData.key], cfg.valueMode, false)
+                    color: cfg.cLabels
                     opacity: cfg.oLabels
                     font.pixelSize: Math.max(6, win.rowH * 0.40)
                     font.features: ({ "tnum": 1 })
@@ -483,19 +514,22 @@ Window {
                 opacity: win.op(cfg[modelData.op])
                 Text {
                     width: parent.width
-                    height: win.colLabelH
+                    height: win.colValueH
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
-                    text: Math.floor(win.t[modelData.key].p * 100) + "%"
-                    color: cfg.cText
+                    text: Logic.progressText(modelData.key, win.t[modelData.key], cfg.valueMode, true)
+                    color: cfg.cLabels
                     opacity: cfg.oLabels
                     font.pixelSize: Math.max(6, win.colW * 0.26)
+                    fontSizeMode: Text.HorizontalFit        // las unidades se encogen si la columna es estrecha
+                    minimumPixelSize: 5
+                    lineHeight: 0.95
                     font.features: ({ "tnum": 1 })
                 }
                 Bar {
-                    y: win.colLabelH
+                    y: win.colValueH
                     width: parent.width
-                    height: parent.height - 2 * win.colLabelH
+                    height: parent.height - win.colValueH - win.colLabelH
                     vertical: true
                     thickness: win.colW * 0.42
                     color: cfg[modelData.col]
@@ -510,7 +544,7 @@ Window {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     text: win.ringShort(modelData)
-                    color: cfg.cText
+                    color: cfg.cLabels
                     opacity: cfg.oLabels
                     font.pixelSize: Math.max(6, win.colW * 0.28)
                 }
@@ -549,12 +583,15 @@ Window {
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 maximumLineCount: 3
-                font.pixelSize: Math.max(8, textCol.base * (win.radial && win.n === 0 && !win.analog ? 0.5 : 0.40))
+                // En unidades el texto es más largo: se reduce un poco para que quepa en el centro.
+                font.pixelSize: Math.max(8, textCol.base * (win.radial && win.n === 0 && !win.analog ? 0.5 : 0.40)
+                                            * (textCol.hov && cfg.valueMode !== 0 ? (cfg.valueMode === 2 ? 0.55 : 0.7) : 1))
                 font.weight: Font.DemiBold
                 font.features: ({ "tnum": 1 })
                 color: textCol.hov ? cfg[textCol.hov.ring.col] : cfg.cText
                 opacity: textCol.hov ? 1 : win.op(cfg.oTime)
-                text: textCol.hov ? Math.floor(textCol.hov.val.p * 100) + " %" : Logic.formatDate(win.now, cfg.timeFormat, ui.lang)
+                text: textCol.hov ? Logic.progressText(textCol.hov.ring.key, textCol.hov.val, cfg.valueMode, false)
+                                   : Logic.formatDate(win.now, cfg.timeFormat, ui.lang)
             }
             Text {
                 width: parent.width
@@ -563,7 +600,7 @@ Window {
                 wrapMode: Text.Wrap
                 maximumLineCount: 4
                 font.pixelSize: Math.max(6, textCol.base * 0.17)
-                color: cfg.cText
+                color: cfg.cDate
                 opacity: win.op(cfg.oDate)
                 text: Logic.formatDate(win.now, cfg.dateFormat, ui.lang)
             }
@@ -574,7 +611,7 @@ Window {
                 wrapMode: Text.Wrap
                 maximumLineCount: 3
                 font.pixelSize: Math.max(6, textCol.base * 0.15)
-                color: cfg.cText
+                color: cfg.cSub
                 opacity: textCol.hov ? 0.85 : win.op(cfg.oSub)
                 text: textCol.hov
                       ? Logic.remainingText(win.ringName(textCol.hov.ring), textCol.hov.val.remaining,

@@ -42,7 +42,9 @@ function compute(now, opts) {
         day.work = true;
         day.before = t < ws;
         day.after = t >= we;
-        day.untilStart = Math.max(0, ws - t);
+        // Antes de empezar: cuánto falta para hoy. Después de terminar: cuánto falta para la de mañana.
+        var nextWs = day.after ? new Date(y, m, d + 1, 0, Math.round(o.workStart * 60)).getTime() : ws;
+        day.untilStart = Math.max(0, nextWs - t);
     } else {
         day = span(t, midnight, new Date(y, m, d + 1).getTime());
         day.segs = 24;
@@ -86,13 +88,70 @@ function daySubtitle(day, withSeconds, lang) {
     var en = lang === "en";
     if (day.work) {
         if (day.before) return (en ? "workday starts in " : "jornada en ") + fmt(day.untilStart, withSeconds);
-        if (day.after) return en ? "workday over" : "jornada terminada";
+        if (day.after) return en ? "workday over · next in " + fmt(day.untilStart, withSeconds)
+                                 : "jornada terminada · próxima en " + fmt(day.untilStart, withSeconds);
         return en ? fmt(day.remaining, withSeconds) + " left in workday"
                   : "quedan " + fmt(day.remaining, withSeconds) + " de jornada";
     }
     return en ? fmt(day.remaining, withSeconds) + " left today"
               : "quedan " + fmt(day.remaining, withSeconds) + " del día";
 }
+
+// ---------- Avance en porcentaje o en unidades ----------
+// Unidad de cada anillo: año, mes y semana en días; día (o jornada) en horas; hora en minutos;
+// minuto en segundos. Los decimales se truncan para que nunca se muestre «24/24 h» antes de tiempo.
+var units = {
+    year:   { ms: 86400000, dec: 1, u: "d" },
+    month:  { ms: 86400000, dec: 1, u: "d" },
+    week:   { ms: 86400000, dec: 1, u: "d" },
+    day:    { ms: 3600000,  dec: 1, u: "h" },
+    hour:   { ms: 60000,    dec: 0, u: "min" },
+    minute: { ms: 1000,     dec: 0, u: "s" }
+};
+
+function trimNum(x, dec) {
+    var k = Math.pow(10, dec);
+    var v = Math.floor(x * k + 1e-9) / k;
+    return dec > 0 ? v.toFixed(dec) : "" + v;
+}
+
+// «18.5/24 h», «25/60 min», «20/60 s», «313.4/365 d»
+function unitText(key, val) {
+    var u = units[key] || units.day;
+    var total = val.total / u.ms;
+    var elapsed = Math.max(0, Math.min(total, (val.total - val.remaining) / u.ms));
+    // El total se redondea (los cambios de horario dejan, p. ej., 30.04 días en un mes).
+    var tot = Math.round(total * 10) / 10;
+    var totText = Math.abs(tot - Math.round(tot)) < 1e-9 ? "" + Math.round(tot) : tot.toFixed(1);
+    return trimNum(elapsed, u.dec) + "/" + totText + " " + u.u;
+}
+
+function pctText(p, compact) { return Math.floor(p * 100) + (compact ? "%" : " %"); }
+
+// mode: 0 = porcentaje, 1 = unidades, 2 = ambos. compact: para columnas estrechas (varias líneas).
+function progressText(key, val, mode, compact) {
+    if (mode === 1) {
+        if (!compact) return unitText(key, val);
+        var t = unitText(key, val), i = t.indexOf("/");
+        return t.slice(0, i) + "\n" + t.slice(i);
+    }
+    if (mode === 2) {
+        if (!compact) return pctText(val.p, false) + " · " + unitText(key, val);
+        return pctText(val.p, true) + "\n" + progressText(key, val, 1, true);
+    }
+    return pctText(val.p, compact);
+}
+
+// Texto de ejemplo con el ancho máximo que puede tener progressText para ese anillo
+// (sirve para reservar espacio fijo y que las barras no cambien de tamaño cada segundo).
+function progressSample(key, val, mode, compact) {
+    var fake = { p: 1, total: val.total, remaining: val.total * 0.0001 };
+    return progressText(key, fake, mode, compact).replace(/[0-9]/g, "0");
+}
+
+var valueModes = ["Porcentaje (77 %)", "Unidades (18.5/24 h)", "Ambos (77 % · 18.5/24 h)"];
+var valueModesEn = ["Percentage (77 %)", "Units (18.5/24 h)", "Both (77 % · 18.5/24 h)"];
+function valueModeNames(lang) { return lang === "en" ? valueModesEn : valueModes; }
 
 // «Mes · quedan 3 d 4 h» / «Month · 3 d 4 h left»
 function remainingText(name, ms, withSeconds, lang) {

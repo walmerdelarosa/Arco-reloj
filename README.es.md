@@ -9,6 +9,7 @@ Reloj de escritorio que muestra cuánto ha pasado del año, el mes, la semana, e
 ## Funciones
 
 - Anillos para año, mes, semana, día (o tu jornada laboral), hora y minuto
+- Avance en porcentaje o en unidades (18.5/24 h, 25/60 min, 20/60 s…)
 - 8 estilos: anillos, segmentos, fino, neón, bloque, barras horizontales, barras verticales y analógico
 - Un reloj por monitor, cada uno con su configuración
 - Colores, transparencia y tamaño propios para cada estilo
@@ -20,9 +21,9 @@ Reloj de escritorio que muestra cuánto ha pasado del año, el mes, la semana, e
 
 ## Descarga
 
-Descarga el instalador desde [Releases](../../releases/latest). Funciona en Windows 10 y 11, no necesita Python ni permisos de administrador.
+Descarga el instalador desde [Releases](../../releases/latest). Funciona en Windows 10 y 11 y no necesita Python. Puedes instalarlo solo para ti (sin permisos de administrador) o para todos los usuarios del equipo.
 
-Windows puede mostrar un aviso de SmartScreen porque el instalador no está firmado: **Más información → Ejecutar de todas formas**.
+Si el instalador no está firmado, Windows puede mostrar un aviso de SmartScreen: **Más información → Ejecutar de todas formas**. Ver [firma de código](docs/code-signing.es.md).
 
 ## Uso
 

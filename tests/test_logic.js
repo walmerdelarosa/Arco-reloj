@@ -1,6 +1,6 @@
 const fs=require('fs');
 const src=fs.readFileSync(__dirname + '/../qml/clocklogic.js','utf8').replace('.pragma library','');
-const L=new Function(src+';return {compute,fmt,timeText,daySubtitle,nextDelay,burnOffset,palettes,pad,formatDate,usesSeconds,parseHM,fmtHM,isoWeek,dayOfYear,styles,timePresets,datePresets,styleNames,paletteNames,datePresetsFor,remainingText,mixMaster,mixScale};')();
+const L=new Function(src+';return {compute,fmt,timeText,daySubtitle,nextDelay,burnOffset,palettes,pad,formatDate,usesSeconds,parseHM,fmtHM,isoWeek,dayOfYear,styles,timePresets,datePresets,styleNames,paletteNames,datePresetsFor,remainingText,mixMaster,mixScale,unitText,progressText,progressSample,valueModeNames};')();
 const assert=require('assert');
 let d=new Date(2026,10,3,12,0,0,0); let t=L.compute(d,{});
 assert(Math.abs(t.day.p-0.5)<1e-9); assert.equal(t.month.segs,30);
@@ -13,7 +13,10 @@ const y0=new Date(2026,0,1),y1=new Date(2027,0,1); assert(Math.abs(t.year.p-(d-y
 t=L.compute(new Date(2026,10,3,13,0),{workMode:true,workStart:8,workEnd:18}); assert(Math.abs(t.day.p-0.5)<1e-9); assert.equal(t.day.segs,10);
 assert.equal(L.daySubtitle(t.day,false),'quedan 5 h 00 min de jornada');
 t=L.compute(new Date(2026,10,3,7,15),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false),'jornada en 45 min');
-t=L.compute(new Date(2026,10,3,19,0),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false),'jornada terminada');
+t=L.compute(new Date(2026,10,3,19,0),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false),'jornada terminada · próxima en 13 h 00 min');
+assert.equal(L.daySubtitle(t.day,false,'en'),'workday over · next in 13 h 00 min');
+t=L.compute(new Date(2026,10,3,23,58),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false),'jornada terminada · próxima en 8 h 02 min');
+t=L.compute(new Date(2026,10,3,0,30),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false),'jornada en 7 h 30 min');
 // jornada con minutos escritos a mano: 7:45 a 16:20
 t=L.compute(new Date(2026,10,3,7,40),{workMode:true,workStart:465/60,workEnd:980/60}); assert.equal(L.daySubtitle(t.day,false),'jornada en 5 min');
 t=L.compute(new Date(2026,10,3,16,10),{workMode:true,workStart:465/60,workEnd:980/60}); assert.equal(L.daySubtitle(t.day,false),'quedan 10 min de jornada');
@@ -82,7 +85,7 @@ for(let v=0;v<=1440;v+=7) assert.equal(L.parseHM(L.fmtHM(v)),v);
 t=L.compute(new Date(2026,10,3,13,0),{workMode:true,workStart:8,workEnd:18});
 assert.equal(L.daySubtitle(t.day,false,'en'),'5 h 00 min left in workday');
 t=L.compute(new Date(2026,10,3,7,15),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false,'en'),'workday starts in 45 min');
-t=L.compute(new Date(2026,10,3,19,0),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false,'en'),'workday over');
+t=L.compute(new Date(2026,10,3,19,0),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.daySubtitle(t.day,false,'en'),'workday over · next in 13 h 00 min');
 t=L.compute(new Date(2026,10,3,23,59,30),{}); assert.equal(L.daySubtitle(t.day,true,'en'),'30 s left today');
 assert.equal(L.daySubtitle(t.day,true),'quedan 30 s del día');
 assert.equal(L.remainingText('Month',125e3,true,'en'),'Month · 2 min 05 s left');
@@ -103,3 +106,31 @@ assert.deepEqual(L.mixScale([0.3,0.6],2),[0.5,1]);
 assert.equal(L.mixMaster([]),0);
 
 console.log('OK – todas las pruebas pasaron');
+
+// ---------- avance en unidades ----------
+{
+  let u=L.compute(new Date(2026,10,3,18,30,20),{});
+  assert.equal(L.unitText('day',u.day),'18.5/24 h');
+  assert.equal(L.unitText('hour',u.hour),'30/60 min');
+  assert.equal(L.unitText('minute',u.minute),'20/60 s');
+  assert.equal(L.unitText('month',u.month),'2.7/30 d');
+  assert.equal(L.unitText('week',u.week),'1.7/7 d');
+  assert(/^30[67]\.\d\/365 d$/.test(L.unitText('year',u.year)), L.unitText('year',u.year));
+  assert.equal(L.progressText('day',u.day,0,false),'77 %');
+  assert.equal(L.progressText('day',u.day,0,true),'77%');
+  assert.equal(L.progressText('day',u.day,1,true),'18.5\n/24 h');
+  assert.equal(L.progressText('day',u.day,2,false),'77 % · 18.5/24 h');
+  assert.equal(L.progressText('day',u.day,2,true),'77%\n18.5\n/24 h');
+  // nunca muestra el total antes de tiempo
+  u=L.compute(new Date(2026,10,3,23,59,59),{}); assert.equal(L.unitText('day',u.day),'23.9/24 h');
+  // jornada de 7:45 a 16:15 (8.5 h)
+  u=L.compute(new Date(2026,10,3,12,0),{workMode:true,workStart:7.75,workEnd:16.25}); assert.equal(L.unitText('day',u.day),'4.2/8.5 h');
+  // antes de la jornada: 0
+  u=L.compute(new Date(2026,10,3,6,0),{workMode:true,workStart:8,workEnd:18}); assert.equal(L.unitText('day',u.day),'0.0/10 h');
+  // mes con cambio de horario (no debe salir 31.04)
+  assert(/\/31 d$/.test(L.unitText('month',L.compute(new Date(2026,2,15),{}).month)));
+  assert.equal(L.progressSample('day',L.compute(new Date(2026,10,3,1,0),{}).day,2,false),'000 % · 00.0/00 h');
+  assert.equal(L.valueModeNames('en').length,3);
+}
+console.log('OK – pruebas de unidades');
+

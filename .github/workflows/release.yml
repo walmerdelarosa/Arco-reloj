@@ -88,17 +88,42 @@ jobs:
           } else {
             Write-Host "Sin secretos de Google: la sincronización solo ofrecerá carpeta."
           }
-          python -m PyInstaller --noconfirm --clean --windowed --name ArcoReloj --icon icon.ico --add-data "qml;qml" --add-data "icon.ico;." @extra arco.py
+          # Metadatos de versión y sin UPX: los ejecutables comprimidos o sin datos del producto
+          # dan más falsos positivos en los antivirus.
+          python installer/version_info.py "${{ steps.ver.outputs.version }}" version_info.txt
+          python -m PyInstaller --noconfirm --clean --windowed --noupx --name ArcoReloj --icon icon.ico --version-file version_info.txt --add-data "qml;qml" --add-data "icon.ico;." @extra arco.py
           if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # Firma de código: crea los secretos SIGN_PFX_BASE64 y SIGN_PFX_PASSWORD (o SIGN_CERT_SHA1
+      # en un runner propio con el certificado instalado). Sin ellos se publica sin firmar.
+      # Ver docs/code-signing.es.md.
+      - name: Firma del ejecutable
+        shell: pwsh
+        env:
+          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+          SIGN_CERT_SHA1: ${{ secrets.SIGN_CERT_SHA1 }}
+        run: ./installer/sign.ps1 dist\ArcoReloj\ArcoReloj.exe
 
       - name: Instalador (Inno Setup)
         shell: pwsh
+        env:
+          SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+          SIGN_CERT_SHA1: ${{ secrets.SIGN_CERT_SHA1 }}
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) {
             choco install innosetup -y --no-progress
           }
-          & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" installer\ArcoReloj.iss
+          $isccArgs = @("/DMyAppVersion=${{ steps.ver.outputs.version }}")
+          if ($env:SIGN_PFX_BASE64 -or $env:SIGN_CERT_SHA1) {
+            # Inno firma el instalador y el desinstalador con installer\sign.ps1 ($f = archivo).
+            $script = (Resolve-Path installer\sign.ps1).Path
+            $isccArgs += "/DSIGN"
+            $isccArgs += ('/Sarcosign=pwsh -NoProfile -ExecutionPolicy Bypass -File $q' + $script + '$q $f')
+          }
+          & $iscc @isccArgs installer\ArcoReloj.iss
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Versión portátil (zip)
